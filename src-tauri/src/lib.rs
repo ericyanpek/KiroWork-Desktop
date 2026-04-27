@@ -1,9 +1,15 @@
+mod acp_client;
+mod commands;
+mod error;
+mod kiro_discovery;
+
 use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("kiro_cowork_desktop_lib=debug,warn"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new("kiro_cowork_desktop_lib=debug,warn")
+    });
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(true)
@@ -12,7 +18,15 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![])
+        .manage(commands::acp_state())
+        .invoke_handler(tauri::generate_handler![
+            commands::acp_connect,
+            commands::acp_disconnect,
+            commands::acp_status,
+            commands::session_new,
+            commands::session_prompt,
+            commands::session_cancel,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
