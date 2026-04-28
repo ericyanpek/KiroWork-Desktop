@@ -3,6 +3,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../stores/app-store";
 import { sessionNew } from "../lib/tauri-bridge";
 import type { AppError } from "../types/acp";
+import { KiroMark } from "./KiroMark";
 
 export function Toolbar() {
   const sessionId = useApp((s) => s.sessionId);
@@ -32,32 +33,33 @@ export function Toolbar() {
   }
 
   return (
-    <div className="border-b bg-white px-4 py-2 flex items-center gap-3 text-xs">
-      <span className="inline-block w-2 h-2 rounded-full bg-green-500" />
-      <span className="text-gray-600">ACP: connected</span>
-      <span className="text-gray-300">·</span>
+    <div className="border-b border-border bg-bg-elevated/80 backdrop-blur px-4 py-2.5 flex items-center gap-3 text-xs">
+      <KiroMark size="sm" />
+      <span className="text-fg-subtle">·</span>
+      <span className="inline-flex items-center gap-1.5 text-fg-muted">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_hsl(149_65%_52%/0.8)]" />
+        connected
+      </span>
+      <span className="text-fg-subtle">·</span>
       <button
         onClick={pickFolder}
         disabled={busy}
-        className="rounded-md border border-gray-300 bg-white px-3 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:text-gray-400"
+        className="rounded-md border border-border bg-bg px-3 py-1 text-xs font-medium text-fg-muted hover:text-fg hover:border-accent/50 disabled:opacity-50 transition-colors"
       >
         {busy ? "Opening…" : "Open Folder"}
       </button>
       {workspacePath && (
         <>
-          <span className="text-gray-300">·</span>
-          <span className="truncate text-gray-500">
-            Workspace: <code className="text-[11px]">{workspacePath}</code>
+          <span className="text-fg-subtle">·</span>
+          <span className="truncate text-fg-subtle">
+            <code className="text-[11px] text-fg-muted">{workspacePath}</code>
           </span>
         </>
       )}
       {sessionId && (
-        <>
-          <span className="text-gray-300">·</span>
-          <span className="text-gray-500">
-            Session <code className="text-[11px]">{sessionId.slice(0, 8)}…</code>
-          </span>
-        </>
+        <span className="ml-auto text-fg-subtle font-mono text-[11px]">
+          {sessionId.slice(0, 8)}
+        </span>
       )}
     </div>
   );

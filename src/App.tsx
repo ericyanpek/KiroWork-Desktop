@@ -1,6 +1,7 @@
 import { useApp } from "./stores/app-store";
 import { useAcp } from "./hooks/useAcp";
 import { useWorkspaceDrop } from "./hooks/useWorkspaceDrop";
+import { useSystemTheme } from "./hooks/useTheme";
 import { ChatPanel } from "./components/ChatPanel";
 import { AuthGate } from "./components/AuthGate";
 import { Toolbar } from "./components/Toolbar";
@@ -26,6 +27,7 @@ function MainUI() {
 }
 
 export default function App() {
+  useSystemTheme(); // toggles <html class="dark"> to match macOS Appearance
   return (
     <AuthGate>
       <MainUI />

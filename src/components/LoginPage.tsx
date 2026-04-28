@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { checkAuth, triggerLogin } from "../lib/tauri-bridge";
+import { KiroMark } from "./KiroMark";
 
 export function LoginPage({
   message,
@@ -48,36 +49,39 @@ export function LoginPage({
   }
 
   return (
-    <main className="flex h-full items-center justify-center px-6">
-      <div className="max-w-lg rounded-2xl border bg-white p-8 shadow-sm space-y-5">
+    <main className="flex h-full items-center justify-center px-6 kiro-ambient">
+      <div className="max-w-lg rounded-2xl border border-border bg-bg-elevated/80 backdrop-blur p-8 shadow-2xl shadow-black/40 space-y-5">
+        <KiroMark size="sm" />
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-lg font-bold">→</div>
-          <h1 className="text-xl font-semibold text-gray-800">Sign in to Kiro</h1>
+          <div className="h-10 w-10 rounded-full bg-accent/15 flex items-center justify-center text-accent-strong text-lg font-bold">
+            →
+          </div>
+          <h1 className="text-xl font-semibold text-fg">Sign in to Kiro</h1>
         </div>
-        <p className="text-sm text-gray-600">
-          KiroWork Desktop reuses the same credentials as the Kiro CLI. Click the button
-          below and complete sign-in in the browser window that opens.
+        <p className="text-sm text-fg-muted">
+          KiroWork Desktop reuses the same credentials as the Kiro CLI. Click
+          the button below and complete sign-in in the browser window that opens.
         </p>
         {message && (
-          <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto text-gray-700">{message}</pre>
+          <pre className="text-xs bg-bg-muted border border-border rounded p-2 overflow-x-auto text-fg-muted">
+            {message}
+          </pre>
         )}
         <div className="flex items-center gap-2">
           <button
             onClick={startLogin}
             disabled={polling}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg disabled:opacity-50 transition-colors"
           >
             {polling ? "Waiting for browser…" : "Sign in with browser"}
           </button>
           {polling && (
-            <span className="text-xs text-gray-500">Polling every 3s…</span>
+            <span className="text-xs text-fg-subtle">Polling every 3s…</span>
           )}
         </div>
-        {pollError && (
-          <p className="text-sm text-red-600">{pollError}</p>
-        )}
-        <p className="text-xs text-gray-400">
-          Prefer the terminal? Run <code>kiro-cli login</code> there, then press Retry.
+        {pollError && <p className="text-sm text-red-400">{pollError}</p>}
+        <p className="text-xs text-fg-subtle">
+          Prefer the terminal? Run <code className="text-accent-strong">kiro-cli login</code> there, then press Retry.
         </p>
       </div>
     </main>

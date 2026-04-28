@@ -3,6 +3,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../stores/app-store";
 import { sessionNew } from "../lib/tauri-bridge";
 import type { AppError } from "../types/acp";
+import { KiroMark, KiroMascot } from "./KiroMark";
 
 export function WorkspacePicker() {
   const setSession = useApp((s) => s.setSession);
@@ -32,24 +33,32 @@ export function WorkspacePicker() {
   }
 
   return (
-    <main className="flex h-full items-center justify-center px-6">
-      <div className="max-w-md w-full rounded-2xl border bg-white p-8 shadow-sm space-y-5 text-center">
-        <h1 className="text-2xl font-semibold text-gray-800">Open a workspace</h1>
-        <p className="text-sm text-gray-600">
-          Pick the folder you want to work in. Kiro will run with that folder
-          as its working directory.
+    <main className="flex h-full items-center justify-center px-6 kiro-ambient">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/80 backdrop-blur p-8 shadow-2xl shadow-black/40 space-y-6 text-center">
+        <div className="flex justify-center">
+          <KiroMascot size={128} />
+        </div>
+        <div className="flex justify-center">
+          <KiroMark size="md" />
+        </div>
+        <h1 className="text-2xl font-semibold text-fg tracking-tight">
+          Let's build
+        </h1>
+        <p className="text-sm text-fg-muted">
+          Pick a workspace folder. Kiro will run in that directory with full
+          access to its files.
         </p>
         <button
           onClick={pick}
           disabled={busy}
-          className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300"
+          className="w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg disabled:opacity-50 transition-colors"
         >
           {busy ? "Opening…" : "Choose folder…"}
         </button>
-        <p className="text-xs text-gray-400">
-          Or drag a folder anywhere on this window.
+        <p className="text-xs text-fg-subtle">
+          …or drag a folder anywhere on this window.
         </p>
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-red-400">{err}</p>}
       </div>
     </main>
   );

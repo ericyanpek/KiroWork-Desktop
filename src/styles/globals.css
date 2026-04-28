@@ -2,6 +2,42 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Semantic tokens — values are HSL triplets so they compose with
+   hsl(var(--x) / <alpha>) for opacity variants. Light theme first. */
+:root {
+  --bg: 260 12% 97%;
+  --bg-elevated: 0 0% 100%;
+  --bg-muted: 260 12% 94%;
+
+  --fg: 266 14% 10%;
+  --fg-muted: 267 6% 29%;
+  --fg-subtle: 260 6% 45%;
+
+  --border: 264 7% 86%;
+  --border-strong: 263 7% 76%;
+
+  --accent: 264 100% 64%;         /* purple-500 */
+  --accent-strong: 270 79% 53%;   /* purple-600 */
+  --accent-fg: 0 0% 100%;
+}
+
+.dark {
+  --bg: 266 14% 10%;               /* prey-900 */
+  --bg-elevated: 270 12% 13%;      /* prey-800 */
+  --bg-muted: 264 12% 16%;         /* prey-750 */
+
+  --fg: 260 12% 95%;               /* prey-100 */
+  --fg-muted: 264 7% 86%;          /* prey-200 */
+  --fg-subtle: 263 7% 76%;         /* prey-300 */
+
+  --border: 266 13% 21%;           /* prey-700 */
+  --border-strong: 267 6% 29%;     /* prey-600 */
+
+  --accent: 263 100% 69%;          /* purple-400 — more vivid on dark */
+  --accent-strong: 264 100% 81%;   /* purple-300 */
+  --accent-fg: 266 14% 10%;
+}
+
 html,
 body,
 #root {
@@ -17,6 +53,63 @@ body {
     Helvetica,
     Arial,
     sans-serif;
-  color: #1f2937;
-  background: #f9fafb;
+  color: hsl(var(--fg));
+  background: hsl(var(--bg));
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+/* Thin, unobtrusive scrollbar that matches the theme. */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--border-strong));
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent));
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Subtle ambient gradient behind the app — adds dimension without noise. */
+.kiro-ambient {
+  background:
+    radial-gradient(1200px 600px at 85% -10%, hsl(var(--accent) / 0.08), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, hsl(var(--accent-strong) / 0.06), transparent 55%),
+    hsl(var(--bg));
+}
+
+/* Typography tweaks for assistant markdown on dark cards. */
+.kiro-prose {
+  color: hsl(var(--fg));
+}
+.kiro-prose code {
+  background: hsl(var(--bg-muted));
+  color: hsl(var(--accent-strong));
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+  font-size: 0.92em;
+}
+.kiro-prose pre {
+  background: hsl(var(--bg-muted)) !important;
+  color: hsl(var(--fg)) !important;
+  border: 1px solid hsl(var(--border));
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+.kiro-prose pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+.kiro-prose a {
+  color: hsl(var(--accent-strong));
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }

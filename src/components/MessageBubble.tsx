@@ -5,9 +5,10 @@ import type { Message } from "../stores/app-store";
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const align = isUser ? "items-end" : "items-start";
-  const bubbleColor = isUser
-    ? "bg-blue-600 text-white"
-    : "bg-white text-gray-800 border border-gray-200";
+  const bubbleClass = isUser
+    ? "bg-accent text-accent-foreground"
+    : "bg-bg-elevated text-fg border border-border";
+
   return (
     <div className={`flex flex-col ${align} gap-1`}>
       {message.toolCalls && message.toolCalls.length > 0 && (
@@ -15,36 +16,41 @@ export function MessageBubble({ message }: { message: Message }) {
           {message.toolCalls.map((tc) => (
             <div
               key={tc.toolCallId}
-              className="text-xs text-gray-500 font-mono flex items-center gap-2"
+              className="text-xs text-fg-subtle font-mono flex items-center gap-2"
             >
-              <span className="inline-block w-2 h-2 rounded-full"
+              <span
+                className="inline-block w-2 h-2 rounded-full"
                 style={{
                   backgroundColor:
                     tc.status === "completed"
-                      ? "#16a34a"
+                      ? "hsl(149 65% 52%)"
                       : tc.status === "failed"
-                        ? "#dc2626"
-                        : "#d97706",
+                        ? "hsl(353 94% 62%)"
+                        : "hsl(50 86% 57%)",
+                  boxShadow:
+                    tc.status === "running"
+                      ? "0 0 8px hsl(50 86% 57% / 0.6)"
+                      : undefined,
                 }}
               />
-              <span className="opacity-70">Using tool:</span>
-              <span>{tc.title || tc.kind}</span>
-              <span className="text-gray-400">({tc.status})</span>
+              <span className="opacity-70">Tool</span>
+              <span className="text-fg-muted">{tc.title || tc.kind}</span>
+              <span className="text-fg-subtle">({tc.status})</span>
             </div>
           ))}
         </div>
       )}
       <div
-        className={`max-w-3xl rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${bubbleColor}`}
+        className={`max-w-3xl rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${bubbleClass}`}
       >
         {isUser ? (
           <span className="whitespace-pre-wrap break-words">{message.text}</span>
         ) : (
-          <div className="prose prose-sm max-w-none prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:before:hidden prose-code:after:hidden">
+          <div className="kiro-prose prose prose-sm max-w-none dark:prose-invert">
             {message.text ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
             ) : (
-              <span className="text-gray-400 italic">
+              <span className="text-fg-subtle italic">
                 {message.streaming ? "…" : ""}
               </span>
             )}

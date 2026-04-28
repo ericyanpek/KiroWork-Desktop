@@ -41,7 +41,7 @@ export function InputBar() {
   }
 
   return (
-    <div className="border-t bg-white px-4 py-3">
+    <div className="border-t border-border bg-bg-elevated px-4 py-3">
       <div className="mx-auto max-w-3xl flex items-end gap-2">
         <textarea
           ref={taRef}
@@ -56,15 +56,15 @@ export function InputBar() {
               submit();
             }
           }}
-          placeholder={sessionId ? "Send a message…" : "Open a folder to start"}
+          placeholder={sessionId ? "Ask Kiro…" : "Open a folder to start"}
           rows={2}
           disabled={!sessionId}
-          className="flex-1 resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+          className="flex-1 resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
         />
         {isStreaming ? (
           <button
             onClick={stop}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors"
           >
             Stop
           </button>
@@ -72,14 +72,14 @@ export function InputBar() {
           <button
             onClick={submit}
             disabled={!sessionId || !text.trim()}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Send
           </button>
         )}
       </div>
-      <div className="mx-auto max-w-3xl text-xs text-gray-400 mt-1">
-        Enter to send · Shift+Enter for newline · Cmd/Ctrl+Enter also sends
+      <div className="mx-auto max-w-3xl text-xs text-fg-subtle mt-1">
+        Enter to send · Shift+Enter for newline
       </div>
     </div>
   );

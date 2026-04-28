@@ -3,6 +3,7 @@ import { checkAuth } from "../lib/tauri-bridge";
 import { InstallGuidePage } from "./InstallGuidePage";
 import { LoginPage } from "./LoginPage";
 import { useApp } from "../stores/app-store";
+import { KiroMascot } from "./KiroMark";
 
 type GateState =
   | { kind: "checking" }
@@ -44,8 +45,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
   if (state.kind === "checking") {
     return (
-      <main className="flex h-full items-center justify-center">
-        <div className="text-sm text-gray-500">Checking Kiro CLI…</div>
+      <main className="flex h-full items-center justify-center kiro-ambient">
+        <div className="flex flex-col items-center gap-4 animate-pulse">
+          <KiroMascot size={96} />
+          <div className="text-sm text-fg-muted">Starting Kiro…</div>
+        </div>
       </main>
     );
   }
@@ -63,15 +67,15 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
   if (state.kind === "error") {
     return (
-      <main className="flex h-full items-center justify-center px-6">
-        <div className="max-w-lg rounded-2xl border bg-white p-6 shadow-sm space-y-3">
-          <h1 className="text-lg font-semibold text-gray-800">Startup error</h1>
-          <pre className="text-xs bg-gray-50 border rounded p-2 overflow-x-auto text-gray-700">
+      <main className="flex h-full items-center justify-center px-6 kiro-ambient">
+        <div className="max-w-lg rounded-2xl border border-border bg-bg-elevated/80 backdrop-blur p-6 shadow-2xl shadow-black/40 space-y-3">
+          <h1 className="text-lg font-semibold text-fg">Startup error</h1>
+          <pre className="text-xs bg-bg-muted border border-border rounded p-2 overflow-x-auto text-fg-muted">
             {state.message}
           </pre>
           <button
             onClick={runCheck}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg transition-colors"
           >
             Retry
           </button>
