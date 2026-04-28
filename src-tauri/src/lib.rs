@@ -1,4 +1,5 @@
 mod acp_client;
+mod auth_manager;
 mod commands;
 mod error;
 mod kiro_discovery;
@@ -26,6 +27,8 @@ pub fn run() {
             commands::session_new,
             commands::session_prompt,
             commands::session_cancel,
+            auth_manager::check_auth,
+            auth_manager::trigger_login,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

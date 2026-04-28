@@ -50,3 +50,16 @@ export function onAcpStatus(
     cb(e.payload),
   );
 }
+
+export type AuthStatusPayload =
+  | { status: "ok"; user?: string | null }
+  | { status: "not_installed"; message: string }
+  | { status: "required"; message: string };
+
+export function checkAuth(): Promise<AuthStatusPayload> {
+  return invoke<AuthStatusPayload>("check_auth");
+}
+
+export function triggerLogin(): Promise<void> {
+  return invoke<void>("trigger_login");
+}

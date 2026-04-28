@@ -1,31 +1,27 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { homeDir } from "@tauri-apps/api/path";
 import { useApp } from "./stores/app-store";
 import { useAcp } from "./hooks/useAcp";
-import { acpConnect, sessionNew } from "./lib/tauri-bridge";
+import { sessionNew } from "./lib/tauri-bridge";
 import { ChatPanel } from "./components/ChatPanel";
+import { AuthGate } from "./components/AuthGate";
 import type { AppError } from "./types/acp";
 
-function App() {
+function MainUI() {
   useAcp();
   const sessionId = useApp((s) => s.sessionId);
-  const acpStatus = useApp((s) => s.acpStatus);
-  const setAcpStatus = useApp((s) => s.setAcpStatus);
+  const workspacePath = useApp((s) => s.workspacePath);
   const setSession = useApp((s) => s.setSession);
   const setWorkspace = useApp((s) => s.setWorkspace);
-  const workspacePath = useApp((s) => s.workspacePath);
-  const [agentName, setAgentName] = useState<string | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
 
-  // Task 3 dev bootstrap: one-click connect + create session against $HOME.
-  // Task 5 replaces this with a proper folder picker.
+  // Task 3 dev bootstrap: uses $HOME as cwd. Task 5 swaps this for a real
+  // folder picker. ACP is already connected by AuthGate at this point.
   async function devBootstrap() {
     setBootError(null);
-    setAcpStatus("connecting");
+    setStarting(true);
     try {
-      const init = await acpConnect();
-      setAgentName(init.agentInfo.name);
-      setAcpStatus("connected");
       const cwd = await homeDir();
       const res = await sessionNew(cwd);
       setSession(res.sessionId);
@@ -33,35 +29,28 @@ function App() {
     } catch (e) {
       const err = e as AppError;
       setBootError(`${err.kind ?? "error"}: ${err.message ?? String(e)}`);
-      setAcpStatus("error");
+    } finally {
+      setStarting(false);
     }
   }
-
-  useEffect(() => {
-    // Do not auto-connect yet — Task 4 adds AuthGate for that.
-  }, []);
 
   if (!sessionId) {
     return (
       <main className="flex h-full items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
           <h1 className="text-2xl font-semibold text-gray-800">KiroWork Desktop</h1>
-          <p className="text-sm text-gray-500">
-            ACP status: <code>{acpStatus}</code>
-          </p>
-          {agentName && (
-            <p className="text-sm text-gray-500">Connected to {agentName}</p>
-          )}
+          <p className="text-sm text-gray-500">Connected to Kiro. Pick a workspace to start.</p>
           <button
             onClick={devBootstrap}
-            disabled={acpStatus === "connecting"}
+            disabled={starting}
             className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300"
           >
-            {acpStatus === "connecting" ? "Connecting…" : "Connect & Start Dev Session"}
+            {starting ? "Starting…" : "Start dev session (home folder)"}
           </button>
-          {bootError && (
-            <p className="max-w-md text-sm text-red-600">{bootError}</p>
-          )}
+          {bootError && <p className="max-w-md text-sm text-red-600">{bootError}</p>}
+          <p className="text-xs text-gray-400">
+            Task 5 will replace this with a real folder picker.
+          </p>
         </div>
       </main>
     );
@@ -88,4 +77,10 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <AuthGate>
+      <MainUI />
+    </AuthGate>
+  );
+}
