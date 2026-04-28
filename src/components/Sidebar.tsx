@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../stores/app-store";
+import { useLocalStorageBoolean } from "../hooks/useLocalStorage";
 import {
   useLoadPersistedSessions,
   useRestoreSession,
@@ -159,6 +160,10 @@ export function Sidebar() {
   const restore = useRestoreSession();
   const refreshScan = useWorkspaceScan();
   const [loading, setLoading] = useState<string | null>(null);
+  const [showKiroConfig, , toggleKiroConfig] = useLocalStorageBoolean(
+    "kirowork.sidebar.showKiroConfig",
+    true,
+  );
 
   useEffect(() => {
     loadList();
@@ -192,25 +197,42 @@ export function Sidebar() {
     <aside className="w-[260px] flex-shrink-0 border-r border-border bg-bg-muted/40 flex flex-col min-h-0">
       <div className="px-3 py-3 border-b border-border flex items-center justify-between">
         <KiroMark size="sm" />
-        <button
-          onClick={handleRefresh}
-          title="Refresh"
-          className="text-fg-subtle hover:text-fg transition-colors p-1"
-          aria-label="Refresh sidebar"
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+        <div className="flex items-center gap-1">
+          <button
+            onClick={toggleKiroConfig}
+            title={showKiroConfig ? "Hide .kiro/ panels" : "Show .kiro/ panels"}
+            aria-pressed={showKiroConfig}
+            aria-label={showKiroConfig ? "Hide .kiro/ panels" : "Show .kiro/ panels"}
+            className={`p-1 transition-colors ${
+              showKiroConfig ? "text-fg-muted hover:text-fg" : "text-fg-subtle hover:text-fg"
+            }`}
           >
-            <path d="M14 8A6 6 0 1 1 8 2V4L11 7" />
-          </svg>
-        </button>
+            {showKiroConfig ? (
+              // eye-open
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+                <circle cx="8" cy="8" r="2" />
+              </svg>
+            ) : (
+              // eye-off
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3l10 10" />
+                <path d="M6.5 4.2A7.6 7.6 0 0 1 8 4c4.5 0 7 4 7 4a13 13 0 0 1-2.1 2.6M10.8 10.8A7.6 7.6 0 0 1 8 12c-4.5 0-7-4-7-4a13 13 0 0 1 3-3.4" />
+                <path d="M6.6 6.6a2 2 0 0 0 2.8 2.8" />
+              </svg>
+            )}
+          </button>
+          <button
+            onClick={handleRefresh}
+            title="Refresh"
+            className="text-fg-subtle hover:text-fg transition-colors p-1"
+            aria-label="Refresh sidebar"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 8A6 6 0 1 1 8 2V4L11 7" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
@@ -234,47 +256,51 @@ export function Sidebar() {
           )}
         </CollapsibleSection>
 
-        <CollapsibleSection title="Skills" count={skills.length}>
-          {skills.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-fg-subtle italic">
-              No skills in .kiro/skills/
-            </p>
-          ) : (
-            <ul>
-              {skills.map((s) => (
-                <SkillRow key={s.dirPath} skill={s} />
-              ))}
-            </ul>
-          )}
-        </CollapsibleSection>
+        {showKiroConfig && (
+          <>
+            <CollapsibleSection title="Skills" count={skills.length}>
+              {skills.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-fg-subtle italic">
+                  No skills in .kiro/skills/
+                </p>
+              ) : (
+                <ul>
+                  {skills.map((s) => (
+                    <SkillRow key={s.dirPath} skill={s} />
+                  ))}
+                </ul>
+              )}
+            </CollapsibleSection>
 
-        <CollapsibleSection title="MCP Servers" count={mcp.length}>
-          {mcp.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-fg-subtle italic">
-              No .kiro/settings/mcp.json
-            </p>
-          ) : (
-            <ul>
-              {mcp.map((s) => (
-                <McpRow key={s.name} server={s} />
-              ))}
-            </ul>
-          )}
-        </CollapsibleSection>
+            <CollapsibleSection title="MCP Servers" count={mcp.length}>
+              {mcp.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-fg-subtle italic">
+                  No .kiro/settings/mcp.json
+                </p>
+              ) : (
+                <ul>
+                  {mcp.map((s) => (
+                    <McpRow key={s.name} server={s} />
+                  ))}
+                </ul>
+              )}
+            </CollapsibleSection>
 
-        <CollapsibleSection title="Steering" count={steering.length}>
-          {steering.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-fg-subtle italic">
-              No steering rules in .kiro/steering/
-            </p>
-          ) : (
-            <ul>
-              {steering.map((s) => (
-                <SteeringRow key={s.filePath} entry={s} />
-              ))}
-            </ul>
-          )}
-        </CollapsibleSection>
+            <CollapsibleSection title="Steering" count={steering.length}>
+              {steering.length === 0 ? (
+                <p className="px-3 py-2 text-xs text-fg-subtle italic">
+                  No steering rules in .kiro/steering/
+                </p>
+              ) : (
+                <ul>
+                  {steering.map((s) => (
+                    <SteeringRow key={s.filePath} entry={s} />
+                  ))}
+                </ul>
+              )}
+            </CollapsibleSection>
+          </>
+        )}
       </div>
     </aside>
   );
