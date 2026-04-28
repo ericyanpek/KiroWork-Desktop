@@ -93,6 +93,35 @@ export interface LoadSessionResult {
   replay: ReplayMessage[];
 }
 
+// Phase 2b — workspace manifest (project-scope .kiro/)
+export interface SkillEntry {
+  name: string;
+  version?: string;
+  description?: string;
+  dirPath: string;
+}
+
+export interface McpServerEntry {
+  name: string;
+  command: string;
+  args: string[];
+  disabled: boolean;
+}
+
+export interface SteeringEntry {
+  name: string;
+  /** always | manual | auto | fileMatch (or anything else a project sets). */
+  inclusion: string;
+  fileMatchPattern?: string;
+  filePath: string;
+}
+
+export interface WorkspaceManifest {
+  skills: SkillEntry[];
+  mcpServers: McpServerEntry[];
+  steering: SteeringEntry[];
+}
+
 export interface PromptResult {
   stopReason: "end_turn" | string;
 }

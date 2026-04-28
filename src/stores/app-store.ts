@@ -8,6 +8,7 @@ import type {
   SessionMeta,
   SessionNewResult,
   SessionLoadResult,
+  WorkspaceManifest,
 } from "../types/acp";
 
 export type ToolCallView = {
@@ -52,6 +53,9 @@ export interface AppState {
   // Phase2-a: persisted sessions sidebar
   persistedSessions: SessionMeta[];
 
+  // Phase2-b: project-scope .kiro/ manifest
+  workspaceManifest: WorkspaceManifest | null;
+
   error: AppError | null;
 
   // actions
@@ -75,6 +79,9 @@ export interface AppState {
 
   // Phase2-a
   setPersistedSessions: (list: SessionMeta[]) => void;
+
+  // Phase2-b
+  setWorkspaceManifest: (m: WorkspaceManifest | null) => void;
 
   /** Replace messages wholesale — used by session replay. Does NOT touch
    *  isStreaming or invoke any ACP calls. */
@@ -152,6 +159,7 @@ export const useApp = create<AppState>((set) => ({
   availableModes: [],
   contextUsagePercentage: null,
   persistedSessions: [],
+  workspaceManifest: null,
   error: null,
 
   setAcpStatus: (s) => set({ acpStatus: s }),
@@ -230,6 +238,8 @@ export const useApp = create<AppState>((set) => ({
   applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
 
   setPersistedSessions: (list) => set({ persistedSessions: list }),
+
+  setWorkspaceManifest: (m) => set({ workspaceManifest: m }),
 
   setMessages: (msgs) => set({ messages: msgs }),
 

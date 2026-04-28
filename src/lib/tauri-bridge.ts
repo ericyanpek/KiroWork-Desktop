@@ -9,6 +9,7 @@ import type {
   SessionMeta,
   SessionNewResult,
   SessionUpdateEvent,
+  WorkspaceManifest,
 } from "../types/acp";
 
 // Single place where invoke/listen happen. Components must import from here.
@@ -57,6 +58,10 @@ export function loadSession(
   cwd: string,
 ): Promise<LoadSessionResult> {
   return invoke<LoadSessionResult>("load_session", { sessionId, cwd });
+}
+
+export function scanWorkspace(path: string): Promise<WorkspaceManifest> {
+  return invoke<WorkspaceManifest>("scan_workspace", { path });
 }
 
 export function onSessionUpdate(

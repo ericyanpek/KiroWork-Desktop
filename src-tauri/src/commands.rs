@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 use crate::acp_client::{AcpClient, InitializeResult};
 use crate::error::{AppError, AppResult};
 use crate::session_store::{self, ReplayMessage, SessionMeta};
+use crate::workspace_scanner::{self, WorkspaceManifest};
 
 pub type AcpState = Arc<Mutex<Option<AcpClient>>>;
 
@@ -187,4 +188,23 @@ pub async fn load_session(
         session: session_value,
         replay,
     })
+}
+
+/// Scan `<workspace>/.kiro/` for skills / mcp / steering configs.
+/// Pure disk I/O, no ACP. Runs on the blocking pool.
+#[tauri::command]
+pub async fn scan_workspace(path: String) -> AppResult<WorkspaceManifest> {
+    tokio::task::spawn_blocking(move || {
+        let root = std::path::PathBuf::from(&path);
+        if !root.is_dir() {
+            return Err(AppError::WorkspaceError {
+                message: format!("not a directory: {path}"),
+            });
+        }
+        workspace_scanner::scan(&root)
+    })
+    .await
+    .map_err(|e| AppError::Unknown {
+        message: format!("spawn_blocking: {e}"),
+    })?
 }

@@ -4,6 +4,7 @@ mod commands;
 mod error;
 mod kiro_discovery;
 mod session_store;
+mod workspace_scanner;
 
 use tracing_subscriber::EnvFilter;
 
@@ -32,6 +33,7 @@ pub fn run() {
             commands::set_mode,
             commands::list_persisted_sessions,
             commands::load_session,
+            commands::scan_workspace,
             auth_manager::check_auth,
             auth_manager::trigger_login,
         ])
