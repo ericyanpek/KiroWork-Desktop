@@ -2,6 +2,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "../stores/app-store";
 import { CodeBlock } from "./CodeBlock";
+import { ToolCallCard } from "./ToolCallCard";
 
 // Markdown `code` renderer: inline code keeps the Kiro prose styling,
 // fenced code blocks go through shiki via CodeBlock. react-markdown v10
@@ -33,31 +34,9 @@ export function MessageBubble({ message }: { message: Message }) {
   return (
     <div className={`flex flex-col ${align} gap-1`}>
       {message.toolCalls && message.toolCalls.length > 0 && (
-        <div className="w-full max-w-3xl flex flex-col gap-1 px-1">
+        <div className="w-full max-w-3xl flex flex-col gap-2 px-1">
           {message.toolCalls.map((tc) => (
-            <div
-              key={tc.toolCallId}
-              className="text-xs text-fg-subtle font-mono flex items-center gap-2"
-            >
-              <span
-                className="inline-block w-2 h-2 rounded-full"
-                style={{
-                  backgroundColor:
-                    tc.status === "completed"
-                      ? "hsl(149 65% 52%)"
-                      : tc.status === "failed"
-                        ? "hsl(353 94% 62%)"
-                        : "hsl(50 86% 57%)",
-                  boxShadow:
-                    tc.status === "running"
-                      ? "0 0 8px hsl(50 86% 57% / 0.6)"
-                      : undefined,
-                }}
-              />
-              <span className="opacity-70">Tool</span>
-              <span className="text-fg-muted">{tc.title || tc.kind}</span>
-              <span className="text-fg-subtle">({tc.status})</span>
-            </div>
+            <ToolCallCard key={tc.toolCallId} call={tc} />
           ))}
         </div>
       )}

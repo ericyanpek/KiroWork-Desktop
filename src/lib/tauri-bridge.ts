@@ -64,6 +64,13 @@ export function scanWorkspace(path: string): Promise<WorkspaceManifest> {
   return invoke<WorkspaceManifest>("scan_workspace", { path });
 }
 
+/** Read an arbitrary file as bytes. Returns a raw Uint8Array (Tauri
+ *  serialises Vec<u8> as number[] over IPC; we coerce here). */
+export async function readFileBytes(path: string): Promise<Uint8Array> {
+  const arr = await invoke<number[]>("read_file_bytes", { path });
+  return new Uint8Array(arr);
+}
+
 export function onSessionUpdate(
   cb: (ev: SessionUpdateEvent) => void,
 ): Promise<UnlistenFn> {

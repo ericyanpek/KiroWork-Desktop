@@ -190,6 +190,29 @@ pub async fn load_session(
     })
 }
 
+/// Read an arbitrary file as raw bytes. Used by image upload (InputBar)
+/// where the path comes from Tauri's native file dialog — the user has
+/// already granted consent by picking the file, so we don't gate on
+/// capability scopes. Size-capped to 20 MiB to prevent a runaway blob
+/// from wedging the renderer.
+#[tauri::command]
+pub async fn read_file_bytes(path: String) -> AppResult<Vec<u8>> {
+    const MAX: u64 = 20 * 1024 * 1024;
+    let meta = tokio::fs::metadata(&path)
+        .await
+        .map_err(|e| AppError::Unknown {
+            message: format!("stat {path}: {e}"),
+        })?;
+    if meta.len() > MAX {
+        return Err(AppError::Unknown {
+            message: format!("file too large ({} bytes, max {MAX})", meta.len()),
+        });
+    }
+    tokio::fs::read(&path).await.map_err(|e| AppError::Unknown {
+        message: format!("read {path}: {e}"),
+    })
+}
+
 /// Scan `<workspace>/.kiro/` for skills / mcp / steering configs.
 /// Pure disk I/O, no ACP. Runs on the blocking pool.
 #[tauri::command]

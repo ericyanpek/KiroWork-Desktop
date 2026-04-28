@@ -34,6 +34,7 @@ pub fn run() {
             commands::list_persisted_sessions,
             commands::load_session,
             commands::scan_workspace,
+            commands::read_file_bytes,
             auth_manager::check_auth,
             auth_manager::trigger_login,
         ])

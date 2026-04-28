@@ -1,7 +1,16 @@
 // TypeScript types for the real ACP protocol as emitted by kiro-cli 2.1.1.
 // Probed live, not taken from DESIGN.md (which has several incorrect shapes).
 
-export type ContentBlock = { type: "text"; text: string };
+export type ContentBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; data: string; mimeType: string };
+
+/** Structured payload kiro-cli attaches to tool_call / tool_call_update
+ *  notifications. For edit tools we get `{ type:"diff", path, oldText,
+ *  newText }`; other shapes pass through untouched for forward-compat. */
+export type ToolCallContent =
+  | { type: "diff"; path: string; oldText: string; newText: string }
+  | { type: string; [k: string]: unknown };
 
 export type SessionUpdate =
   | { sessionUpdate: "agent_message_chunk"; content: { type: "text"; text: string } }
@@ -12,6 +21,7 @@ export type SessionUpdate =
       kind: string;
       locations?: { path: string }[];
       rawInput?: unknown;
+      content?: ToolCallContent[];
     }
   | {
       sessionUpdate: "tool_call_update";
@@ -22,6 +32,7 @@ export type SessionUpdate =
       locations?: { path: string }[];
       rawInput?: unknown;
       rawOutput?: unknown;
+      content?: ToolCallContent[];
     }
   // Forward-compat: future kinds pass through unhandled.
   | { sessionUpdate: string; [k: string]: unknown };
