@@ -3,6 +3,7 @@ mod auth_manager;
 mod commands;
 mod error;
 mod kiro_discovery;
+mod session_store;
 
 use tracing_subscriber::EnvFilter;
 
@@ -29,6 +30,8 @@ pub fn run() {
             commands::session_cancel,
             commands::set_model,
             commands::set_mode,
+            commands::list_persisted_sessions,
+            commands::load_session,
             auth_manager::check_auth,
             auth_manager::trigger_login,
         ])

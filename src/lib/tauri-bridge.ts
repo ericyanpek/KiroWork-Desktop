@@ -4,7 +4,9 @@ import type {
   ContentBlock,
   InitializeResult,
   KiroMetadataEvent,
+  LoadSessionResult,
   PromptResult,
+  SessionMeta,
   SessionNewResult,
   SessionUpdateEvent,
 } from "../types/acp";
@@ -44,6 +46,17 @@ export function setModel(sessionId: string, modelId: string): Promise<unknown> {
 
 export function setMode(sessionId: string, modeId: string): Promise<unknown> {
   return invoke<unknown>("set_mode", { sessionId, modeId });
+}
+
+export function listPersistedSessions(): Promise<SessionMeta[]> {
+  return invoke<SessionMeta[]>("list_persisted_sessions");
+}
+
+export function loadSession(
+  sessionId: string,
+  cwd: string,
+): Promise<LoadSessionResult> {
+  return invoke<LoadSessionResult>("load_session", { sessionId, cwd });
 }
 
 export function onSessionUpdate(

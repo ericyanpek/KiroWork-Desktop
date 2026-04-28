@@ -70,6 +70,29 @@ export interface KiroMetadataEvent {
   contextUsagePercentage: number;
 }
 
+// Phase 2a — persisted session sidebar types (match Rust session_store.rs)
+export interface SessionMeta {
+  sessionId: string;
+  title: string;
+  cwd: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export type ReplayBlock =
+  | { kind: "text"; text: string }
+  | { kind: "toolUse"; toolUseId: string; name: string; input: unknown };
+
+export type ReplayMessage =
+  | { role: "user"; id: string; text: string; timestamp?: number | null }
+  | { role: "agent"; id: string; blocks: ReplayBlock[] }
+  | { role: "tool"; id: string; toolUseId: string; text: string };
+
+export interface LoadSessionResult {
+  session: SessionLoadResult;
+  replay: ReplayMessage[];
+}
+
 export interface PromptResult {
   stopReason: "end_turn" | string;
 }

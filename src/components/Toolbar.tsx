@@ -4,7 +4,6 @@ import { useApp } from "../stores/app-store";
 import { setMode, setModel } from "../lib/tauri-bridge";
 import { useOpenWorkspace } from "../hooks/useOpenWorkspace";
 import type { AppError } from "../types/acp";
-import { KiroMark } from "./KiroMark";
 import { Dropdown, DropdownItem } from "./Dropdown";
 import { ContextGauge } from "./ContextGauge";
 
@@ -72,8 +71,6 @@ export function Toolbar() {
 
   return (
     <div className="border-b border-border bg-bg-elevated/80 backdrop-blur px-4 py-2.5 flex items-center gap-3 text-xs">
-      <KiroMark size="sm" />
-      <span className="text-fg-subtle">·</span>
       <span className="inline-flex items-center gap-1.5 text-fg-muted">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_hsl(149_65%_52%/0.8)]" />
         connected

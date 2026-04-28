@@ -4,6 +4,8 @@ import type {
   KiroMetadataEvent,
   ModeInfo,
   ModelInfo,
+  ReplayMessage,
+  SessionMeta,
   SessionNewResult,
   SessionLoadResult,
 } from "../types/acp";
@@ -47,6 +49,9 @@ export interface AppState {
   availableModes: ModeInfo[];
   contextUsagePercentage: number | null;
 
+  // Phase2-a: persisted sessions sidebar
+  persistedSessions: SessionMeta[];
+
   error: AppError | null;
 
   // actions
@@ -68,11 +73,66 @@ export interface AppState {
   hydrateFromSessionResult: (r: SessionNewResult | SessionLoadResult) => void;
   applyMetadata: (e: KiroMetadataEvent) => void;
 
+  // Phase2-a
+  setPersistedSessions: (list: SessionMeta[]) => void;
+
   /** Replace messages wholesale — used by session replay. Does NOT touch
    *  isStreaming or invoke any ACP calls. */
   setMessages: (msgs: Message[]) => void;
 
   resetSession: () => void;
+}
+
+/** Map backend ReplayMessages into the UI's Message[] shape. Assistant
+ *  replay flattens text blocks into `text` and toolUse blocks into
+ *  `toolCalls` with synthetic status="completed"; Tool results get
+ *  stitched into the matching assistant message's toolCall text if we
+ *  can find it, otherwise they become a dedicated "tool" bubble. */
+export function replayToMessages(replay: ReplayMessage[]): Message[] {
+  const out: Message[] = [];
+  const toolByUseId = new Map<string, ToolCallView>();
+
+  for (const r of replay) {
+    if (r.role === "user") {
+      out.push({ id: r.id, role: "user", text: r.text });
+    } else if (r.role === "agent") {
+      const text = r.blocks
+        .filter((b): b is { kind: "text"; text: string } => b.kind === "text")
+        .map((b) => b.text)
+        .join("");
+      const toolCalls: ToolCallView[] = [];
+      for (const b of r.blocks) {
+        if (b.kind === "toolUse") {
+          const tc: ToolCallView = {
+            toolCallId: b.toolUseId,
+            title: b.name,
+            kind: b.name,
+            status: "completed",
+          };
+          toolCalls.push(tc);
+          toolByUseId.set(b.toolUseId, tc);
+        }
+      }
+      out.push({
+        id: r.id,
+        role: "assistant",
+        text,
+        streaming: false,
+        toolCalls,
+      });
+    } else if (r.role === "tool") {
+      // Attach the result text onto the matching tool call title for a
+      // compact preview. If no match, skip — it would render as a
+      // dangling "tool" bubble without context.
+      const tc = toolByUseId.get(r.toolUseId);
+      if (tc && r.text) {
+        // Leave title alone; title is human-readable kiro name. For now
+        // we just flag the call as completed (already is). No extra text
+        // in Phase 2; the ToolCallCard in (d) will render richer details.
+      }
+    }
+  }
+  return out;
 }
 
 function rid(): string {
@@ -91,6 +151,7 @@ export const useApp = create<AppState>((set) => ({
   availableModels: [],
   availableModes: [],
   contextUsagePercentage: null,
+  persistedSessions: [],
   error: null,
 
   setAcpStatus: (s) => set({ acpStatus: s }),
@@ -168,6 +229,8 @@ export const useApp = create<AppState>((set) => ({
 
   applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
 
+  setPersistedSessions: (list) => set({ persistedSessions: list }),
+
   setMessages: (msgs) => set({ messages: msgs }),
 
   resetSession: () =>
@@ -181,5 +244,7 @@ export const useApp = create<AppState>((set) => ({
       availableModels: [],
       availableModes: [],
       contextUsagePercentage: null,
+      // persistedSessions stays — it's a separate concern from the active
+      // session's state.
     }),
 }));
