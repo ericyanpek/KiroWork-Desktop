@@ -1,6 +1,27 @@
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Message } from "../stores/app-store";
+import { CodeBlock } from "./CodeBlock";
+
+// Markdown `code` renderer: inline code keeps the Kiro prose styling,
+// fenced code blocks go through shiki via CodeBlock. react-markdown v10
+// no longer passes `inline`; a fenced block gets a `className` with
+// `language-xxx`, inline code does not.
+const markdownComponents: Components = {
+  code({ className, children, ...rest }) {
+    const raw = String(children ?? "");
+    const match = /language-(\w+)/.exec(className ?? "");
+    const looksFenced = !!match || raw.includes("\n");
+    if (!looksFenced) {
+      return (
+        <code className={className} {...rest}>
+          {children}
+        </code>
+      );
+    }
+    return <CodeBlock lang={match?.[1]} code={raw.replace(/\n$/, "")} />;
+  },
+};
 
 export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
@@ -48,7 +69,12 @@ export function MessageBubble({ message }: { message: Message }) {
         ) : (
           <div className="kiro-prose prose prose-sm max-w-none dark:prose-invert">
             {message.text ? (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={markdownComponents}
+              >
+                {message.text}
+              </ReactMarkdown>
             ) : (
               <span className="text-fg-subtle italic">
                 {message.streaming ? "…" : ""}
