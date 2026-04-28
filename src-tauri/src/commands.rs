@@ -86,3 +86,42 @@ pub async fn session_cancel(state: State<'_, AcpState>, session_id: String) -> A
         .notify("session/cancel", serde_json::json!({ "sessionId": session_id }))
         .await
 }
+
+/// Switch the active session's model. Real ACP param key is `modelId`,
+/// NOT `model` as DESIGN.md said. Returns the empty `{}` result from ACP.
+#[tauri::command]
+pub async fn set_model(
+    state: State<'_, AcpState>,
+    session_id: String,
+    model_id: String,
+) -> AppResult<Value> {
+    let mut guard = state.lock().await;
+    let client = guard.as_mut().ok_or(AppError::SessionError {
+        message: "acp not connected".into(),
+    })?;
+    client
+        .request(
+            "session/set_model",
+            serde_json::json!({ "sessionId": session_id, "modelId": model_id }),
+        )
+        .await
+}
+
+/// Switch the active session's agent mode. Real ACP param key is `modeId`.
+#[tauri::command]
+pub async fn set_mode(
+    state: State<'_, AcpState>,
+    session_id: String,
+    mode_id: String,
+) -> AppResult<Value> {
+    let mut guard = state.lock().await;
+    let client = guard.as_mut().ok_or(AppError::SessionError {
+        message: "acp not connected".into(),
+    })?;
+    client
+        .request(
+            "session/set_mode",
+            serde_json::json!({ "sessionId": session_id, "modeId": mode_id }),
+        )
+        .await
+}

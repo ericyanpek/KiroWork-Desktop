@@ -27,6 +27,8 @@ pub fn run() {
             commands::session_new,
             commands::session_prompt,
             commands::session_cancel,
+            commands::set_model,
+            commands::set_mode,
             auth_manager::check_auth,
             auth_manager::trigger_login,
         ])

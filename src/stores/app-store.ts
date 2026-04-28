@@ -1,11 +1,22 @@
 import { create } from "zustand";
-import type { AppError } from "../types/acp";
+import type {
+  AppError,
+  KiroMetadataEvent,
+  ModeInfo,
+  ModelInfo,
+  SessionNewResult,
+  SessionLoadResult,
+} from "../types/acp";
 
 export type ToolCallView = {
   toolCallId: string;
   title: string;
   kind: string;
   status: "running" | "completed" | "failed" | string;
+  /** Structured payload from kiro-cli. For edit tools this carries
+   *  `[{ type: "diff", path, oldText, newText }, ...]`. Other types pass
+   *  through untouched so future shapes reach the UI without Rust edits. */
+  content?: unknown[];
 };
 
 export type Message = {
@@ -29,6 +40,13 @@ export interface AppState {
   messages: Message[];
   isStreaming: boolean;
 
+  // Phase2-c: model/mode state + context gauge
+  currentModelId: string | null;
+  currentModeId: string | null;
+  availableModels: ModelInfo[];
+  availableModes: ModeInfo[];
+  contextUsagePercentage: number | null;
+
   error: AppError | null;
 
   // actions
@@ -44,6 +62,16 @@ export interface AppState {
   appendChunk: (text: string) => void;
   addOrUpdateToolCall: (tc: ToolCallView) => void;
 
+  // Phase2-c
+  setCurrentModelId: (id: string | null) => void;
+  setCurrentModeId: (id: string | null) => void;
+  hydrateFromSessionResult: (r: SessionNewResult | SessionLoadResult) => void;
+  applyMetadata: (e: KiroMetadataEvent) => void;
+
+  /** Replace messages wholesale — used by session replay. Does NOT touch
+   *  isStreaming or invoke any ACP calls. */
+  setMessages: (msgs: Message[]) => void;
+
   resetSession: () => void;
 }
 
@@ -58,6 +86,11 @@ export const useApp = create<AppState>((set) => ({
   workspacePath: null,
   messages: [],
   isStreaming: false,
+  currentModelId: null,
+  currentModeId: null,
+  availableModels: [],
+  availableModes: [],
+  contextUsagePercentage: null,
   error: null,
 
   setAcpStatus: (s) => set({ acpStatus: s }),
@@ -95,7 +128,6 @@ export const useApp = create<AppState>((set) => ({
       const msgs = [...state.messages];
       let last = msgs[msgs.length - 1];
       if (!last || last.role !== "assistant" || !last.streaming) {
-        // Tool calls can arrive before any text chunk; ensure an assistant shell exists.
         last = { id: rid(), role: "assistant", text: "", streaming: true, toolCalls: [] };
         msgs.push(last);
       }
@@ -121,6 +153,33 @@ export const useApp = create<AppState>((set) => ({
       return { messages: msgs };
     }),
 
+  setCurrentModelId: (id) => set({ currentModelId: id }),
+  setCurrentModeId: (id) => set({ currentModeId: id }),
+
+  hydrateFromSessionResult: (r) =>
+    set({
+      currentModelId: r.models?.currentModelId ?? null,
+      currentModeId: r.modes?.currentModeId ?? null,
+      availableModels: r.models?.availableModels ?? [],
+      availableModes: r.modes?.availableModes ?? [],
+      // Fresh session/load: reset context gauge until kiro sends new metadata.
+      contextUsagePercentage: null,
+    }),
+
+  applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
+
+  setMessages: (msgs) => set({ messages: msgs }),
+
   resetSession: () =>
-    set({ sessionId: null, messages: [], isStreaming: false, error: null }),
+    set({
+      sessionId: null,
+      messages: [],
+      isStreaming: false,
+      error: null,
+      currentModelId: null,
+      currentModeId: null,
+      availableModels: [],
+      availableModes: [],
+      contextUsagePercentage: null,
+    }),
 }));

@@ -35,16 +35,39 @@ export interface InitializeResult {
   agentInfo: { name: string; version: string; title?: string };
 }
 
+export interface ModeInfo {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+export interface ModelInfo {
+  modelId: string;
+  name: string;
+  description?: string;
+}
+
 export interface SessionNewResult {
   sessionId: string;
   modes: {
     currentModeId: string;
-    availableModes: { id: string; name: string; description?: string }[];
+    availableModes: ModeInfo[];
   };
   models: {
     currentModelId: string;
-    availableModels: { modelId: string; name: string; description?: string }[];
+    availableModels: ModelInfo[];
   };
+}
+
+/** session/load response — mirror of SessionNewResult minus sessionId. */
+export interface SessionLoadResult {
+  modes: SessionNewResult["modes"];
+  models: SessionNewResult["models"];
+}
+
+export interface KiroMetadataEvent {
+  sessionId: string;
+  contextUsagePercentage: number;
 }
 
 export interface PromptResult {

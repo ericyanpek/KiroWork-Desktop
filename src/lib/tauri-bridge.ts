@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   ContentBlock,
   InitializeResult,
+  KiroMetadataEvent,
   PromptResult,
   SessionNewResult,
   SessionUpdateEvent,
@@ -37,6 +38,14 @@ export function sessionCancel(sessionId: string): Promise<void> {
   return invoke<void>("session_cancel", { sessionId });
 }
 
+export function setModel(sessionId: string, modelId: string): Promise<unknown> {
+  return invoke<unknown>("set_model", { sessionId, modelId });
+}
+
+export function setMode(sessionId: string, modeId: string): Promise<unknown> {
+  return invoke<unknown>("set_mode", { sessionId, modeId });
+}
+
 export function onSessionUpdate(
   cb: (ev: SessionUpdateEvent) => void,
 ): Promise<UnlistenFn> {
@@ -62,4 +71,22 @@ export function checkAuth(): Promise<AuthStatusPayload> {
 
 export function triggerLogin(): Promise<void> {
   return invoke<void>("trigger_login");
+}
+
+export function onKiroMetadata(
+  cb: (ev: KiroMetadataEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<KiroMetadataEvent>("kiro-metadata", (e) => cb(e.payload));
+}
+
+export function onKiroCommands(
+  cb: (payload: unknown) => void,
+): Promise<UnlistenFn> {
+  return listen<unknown>("kiro-commands", (e) => cb(e.payload));
+}
+
+export function onKiroSubagents(
+  cb: (payload: unknown) => void,
+): Promise<UnlistenFn> {
+  return listen<unknown>("kiro-subagents", (e) => cb(e.payload));
 }

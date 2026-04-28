@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { onAcpStatus, onSessionUpdate } from "../lib/tauri-bridge";
+import { onAcpStatus, onKiroMetadata, onSessionUpdate } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 
 /**
@@ -28,11 +28,13 @@ import { useApp } from "../stores/app-store";
 let subscribed = false;
 let unsubUpdate: Promise<() => void> | null = null;
 let unsubStatus: Promise<() => void> | null = null;
+let unsubMetadata: Promise<() => void> | null = null;
 
 export function useAcp() {
   const appendChunk = useApp((s) => s.appendChunk);
   const addOrUpdateToolCall = useApp((s) => s.addOrUpdateToolCall);
   const setAcpStatus = useApp((s) => s.setAcpStatus);
+  const applyMetadata = useApp((s) => s.applyMetadata);
 
   // Latest-value ref so updates for the active session aren't dropped without
   // putting sessionId in effect deps (which would re-subscribe on every change).
@@ -57,12 +59,18 @@ export function useAcp() {
           break;
         }
         case "tool_call": {
-          const tc = update as { toolCallId: string; title: string; kind: string };
+          const tc = update as {
+            toolCallId: string;
+            title: string;
+            kind: string;
+            content?: unknown[];
+          };
           addOrUpdateToolCall({
             toolCallId: tc.toolCallId,
             title: tc.title,
             kind: tc.kind,
             status: "running",
+            content: tc.content,
           });
           break;
         }
@@ -72,12 +80,14 @@ export function useAcp() {
             title?: string;
             kind: string;
             status: string;
+            content?: unknown[];
           };
           addOrUpdateToolCall({
             toolCallId: tc.toolCallId,
             title: tc.title ?? "",
             kind: tc.kind,
             status: tc.status,
+            content: tc.content,
           });
           break;
         }
@@ -88,10 +98,11 @@ export function useAcp() {
     });
 
     unsubStatus = onAcpStatus((s) => setAcpStatus(s));
+    unsubMetadata = onKiroMetadata((e) => applyMetadata(e));
 
     // Intentionally no cleanup: subscriptions live for the app's lifetime.
     // The `subscribed` latch makes StrictMode's double-invoke a no-op.
-  }, [appendChunk, addOrUpdateToolCall, setAcpStatus]);
+  }, [appendChunk, addOrUpdateToolCall, setAcpStatus, applyMetadata]);
 }
 
 /** Test / teardown helper — not used by the app itself. */
@@ -99,6 +110,8 @@ export async function _unsubscribeAcpForTests() {
   subscribed = false;
   if (unsubUpdate) (await unsubUpdate)();
   if (unsubStatus) (await unsubStatus)();
+  if (unsubMetadata) (await unsubMetadata)();
   unsubUpdate = null;
   unsubStatus = null;
+  unsubMetadata = null;
 }

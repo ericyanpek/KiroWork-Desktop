@@ -236,6 +236,24 @@ fn dispatch(
                 tracing::warn!(err = %e, "emit session-update failed");
             }
         }
+        // Surface three _kiro.dev/* streams that have UI consumers. Others stay
+        // at debug for now. Payloads forwarded as raw serde_json::Value so any
+        // future field additions reach the frontend without Rust edits.
+        "_kiro.dev/metadata" => {
+            if let Err(e) = app.emit("kiro-metadata", &params) {
+                tracing::warn!(err = %e, "emit kiro-metadata failed");
+            }
+        }
+        "_kiro.dev/commands/available" => {
+            if let Err(e) = app.emit("kiro-commands", &params) {
+                tracing::warn!(err = %e, "emit kiro-commands failed");
+            }
+        }
+        "_kiro.dev/subagent/list_update" => {
+            if let Err(e) = app.emit("kiro-subagents", &params) {
+                tracing::warn!(err = %e, "emit kiro-subagents failed");
+            }
+        }
         m if m.starts_with("_kiro.dev/") => {
             tracing::debug!(method = m, params = %params, "kiro extension notification");
         }

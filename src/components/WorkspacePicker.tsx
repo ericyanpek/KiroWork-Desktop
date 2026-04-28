@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
-import { useApp } from "../stores/app-store";
-import { sessionNew } from "../lib/tauri-bridge";
+import { useOpenWorkspace } from "../hooks/useOpenWorkspace";
 import type { AppError } from "../types/acp";
 import { KiroMark, KiroMascot } from "./KiroMark";
 
 export function WorkspacePicker() {
-  const setSession = useApp((s) => s.setSession);
-  const setWorkspace = useApp((s) => s.setWorkspace);
-  const setError = useApp((s) => s.setError);
+  const openWorkspace = useOpenWorkspace();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -20,13 +17,10 @@ export function WorkspacePicker() {
       if (!picked) return;
       const path = Array.isArray(picked) ? picked[0] : picked;
       if (!path) return;
-      const res = await sessionNew(path);
-      setSession(res.sessionId);
-      setWorkspace(path);
+      await openWorkspace(path);
     } catch (e) {
       const ae = e as AppError;
       setErr(ae.message ?? String(e));
-      setError(ae);
     } finally {
       setBusy(false);
     }
