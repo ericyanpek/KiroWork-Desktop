@@ -46,63 +46,63 @@ src-tauri/target/release/bundle/
 
 ## Distributing the DMG to other people
 
-> **Short version**: tell recipients to open the DMG, drag the app to
-> Applications, then double-click **`First-run fix.command`**.
+> **Short version**: tell recipients to drag the app to Applications, then
+> **right-click → Open** on the first launch.
 
-### Why they'll see "KiroWork Desktop.app is damaged"
+### How the unsigned bundle behaves
 
-The app is **not signed with an Apple Developer ID** (that costs 99 USD / year).
-When macOS sees an unsigned app that came in through any network channel —
-Safari, Chrome, AirDrop, WeChat, DingTalk, email, a cloud drive — it stamps
-the download with `com.apple.quarantine` and refuses to open it. The error
-message says "damaged", but the file is completely fine; Gatekeeper is just
-saying no.
+The app is ad-hoc signed (`bundle.macOS.signingIdentity: "-"` in
+`tauri.conf.json`) but **not signed with an Apple Developer ID** (which
+costs 99 USD/year). On first launch, macOS shows an "unidentified
+developer" dialog. Apple's built-in escape hatch is **right-click → Open**:
+choose Open from the context menu, then click Open in the confirmation
+dialog. Done once, then double-click works forever after.
 
-The file **only** gets that stamp on the recipient's machine. That's why you
-can open your own builds without issue — your local files never had it.
+### Why not a .command helper?
 
-### What `npm run bundle:mac` does about it
+An earlier attempt bundled a `First-run fix.command` that cleared
+`com.apple.quarantine`. Don't do this — macOS applies a **stricter Gatekeeper
+policy to double-clicked `.command` files than to `.app` bundles**, with
+**no right-click → Open escape hatch**. Unsigned shell scripts from a
+quarantined DMG get blocked silently every time. Ad-hoc signing the app
+is the only approach that actually works without paying Apple.
 
-The repacked DMG includes a small helper (`First-run fix.command`) that
-clears `com.apple.quarantine` from the installed app, plus a plain-English
-README inside the disk image:
+### DMG contents
+
+`npm run bundle:mac` produces a DMG with:
 
 ```
 KiroWork Desktop 0.2.0/
 ├── KiroWork Desktop.app
-├── Applications  ← symlink to /Applications
-├── First-run fix.command
-└── README.txt
+├── Applications        ← symlink, for drag-install
+└── READ ME FIRST.txt
 ```
 
 **Instructions for recipients** (paste these alongside the DMG link):
 
 1. Open the DMG.
 2. Drag **KiroWork Desktop.app** into the **Applications** folder.
-3. Double-click **First-run fix.command**. A Terminal window will open
-   briefly, print "Done", and close on any keypress.
-4. Launch KiroWork Desktop from Launchpad or Applications.
+3. Open Applications, **right-click KiroWork Desktop → Open**, click
+   **Open** in the confirmation dialog.
+4. After the first launch, open it normally from Launchpad / Dock /
+   Spotlight.
 
-If they skip step 3 and get the "damaged" dialog anyway, either:
+If macOS still blocks with a "damaged" error, in Terminal run:
 
-- Right-click the app → **Open** → **Open** in the dialog, OR
-- Run in Terminal:
-  ```sh
-  xattr -cr "/Applications/KiroWork Desktop.app"
-  ```
+```sh
+xattr -cr "/Applications/KiroWork Desktop.app"
+```
 
-### If you want to get rid of the warning entirely
+then try right-click → Open again.
 
-Short of paying for an Apple Developer account, there's no way to make the
-first-launch warning disappear. The proper fix is:
+### Eliminating the warning entirely
 
-1. Join the [Apple Developer Program](https://developer.apple.com/programs/)
-   (99 USD/year).
-2. Request a **Developer ID Application** certificate.
-3. Set `bundle.macOS.signingIdentity` in `src-tauri/tauri.conf.json`.
-4. Notarize with `xcrun notarytool` and staple with `xcrun stapler`.
-
-See [Tauri's macOS signing guide](https://tauri.app/distribute/sign/macos/).
+To skip the first-launch warning, join the
+[Apple Developer Program](https://developer.apple.com/programs/) (99 USD/year),
+request a **Developer ID Application** certificate, replace the `"-"` in
+`bundle.macOS.signingIdentity` with your identity, and notarize with
+`xcrun notarytool` + `xcrun stapler`. See
+[Tauri's macOS signing guide](https://tauri.app/distribute/sign/macos/).
 
 ## Project layout
 
@@ -120,8 +120,7 @@ src-tauri/src/               # Rust backend
   workspace_scanner.rs         scans project .kiro/ for skills/mcp/steering
   auth_manager.rs              kiro-cli login state gate
 scripts/
-  dmg-first-run-fix.command    helper bundled into the DMG
-  repack-dmg.sh                post-processes Tauri's DMG to include helper
+  repack-dmg.sh                post-processes Tauri's DMG with a README
 ```
 
 ## Recommended IDE setup

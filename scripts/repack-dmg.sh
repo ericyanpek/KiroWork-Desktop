@@ -1,10 +1,13 @@
 #!/bin/bash
-# Repack the Tauri-generated DMG to include our first-run-fix helper.
+# Repack the Tauri-generated DMG with a README.
 #
-# Tauri's bundler gives us a DMG with only the .app plus an Applications
-# symlink. We can't ask Tauri to add arbitrary files (its bundle_dmg.sh
-# is baked in), so instead we mount the existing DMG, copy its contents
-# plus our helper into a staging dir, and ship a brand-new read-only DMG.
+# The app is ad-hoc signed (tauri.conf.json -> bundle.macOS.signingIdentity: "-"),
+# so macOS shows the "unidentified developer" dialog on first launch instead
+# of the unworkable "is damaged" one. Recipients right-click -> Open -> Open.
+#
+# Bundling a `.command` helper doesn't work here: macOS applies a stricter
+# Gatekeeper policy to double-clicked shell scripts than to .app bundles,
+# with NO right-click-to-open escape hatch. The helper gets silently blocked.
 #
 # Usage: scripts/repack-dmg.sh [<version>]
 #   version defaults to the value in tauri.conf.json.
@@ -16,18 +19,12 @@ cd "$PROJECT_ROOT"
 
 VERSION="${1:-$(grep '"version"' src-tauri/tauri.conf.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')}"
 BUNDLE_DIR="src-tauri/target/release/bundle"
-ORIGINAL_DMG="${BUNDLE_DIR}/dmg/KiroWork Desktop_${VERSION}_aarch64.dmg"
 APP_SRC="${BUNDLE_DIR}/macos/KiroWork Desktop.app"
-HELPER_SRC="${PROJECT_ROOT}/scripts/dmg-first-run-fix.command"
 
 OUTPUT_DMG="${BUNDLE_DIR}/dmg/KiroWork Desktop_${VERSION}_aarch64.dmg"
 
 if [ ! -d "$APP_SRC" ]; then
   echo "Missing .app bundle at $APP_SRC. Run 'npm run tauri build' first." >&2
-  exit 1
-fi
-if [ ! -f "$HELPER_SRC" ]; then
-  echo "Missing helper script at $HELPER_SRC." >&2
   exit 1
 fi
 
@@ -36,40 +33,43 @@ trap 'rm -rf "$STAGING"' EXIT
 
 echo "Staging DMG contents in $STAGING"
 
-# Copy the .app (preserving symlinks and metadata)
+# Copy the .app (preserving symlinks, metadata, and the ad-hoc signature)
 cp -R "$APP_SRC" "$STAGING/"
 
 # Applications symlink so users can drag-install
 ln -s /Applications "$STAGING/Applications"
 
-# The helper — name it so it's obvious in Finder and sorts last
-cp "$HELPER_SRC" "$STAGING/First-run fix.command"
-chmod +x "$STAGING/First-run fix.command"
-
-# A short README visible inside the DMG
-cat > "$STAGING/README.txt" <<'EOF'
-KiroWork Desktop — first launch instructions
-=============================================
+# Plain-English first-launch README. Covers the ad-hoc-signed path.
+cat > "$STAGING/READ ME FIRST.txt" <<'EOF'
+KiroWork Desktop — first launch
+================================
 
 1. Drag "KiroWork Desktop.app" into the Applications folder.
 
-2. Double-click "First-run fix.command".
-   (macOS flags unsigned apps arriving from the internet. The helper
-    clears that flag so the app will open. You only need to run it once.)
+2. Open the Applications folder, find KiroWork Desktop, and
+   RIGHT-CLICK it -> choose "Open".
 
-3. Open KiroWork Desktop from Launchpad or Applications.
+3. A dialog will say macOS cannot verify the developer.
+   Click "Open" to confirm.
 
-If macOS still blocks the app, right-click it → Open → Open in the
-dialog, or run:
-  xattr -cr "/Applications/KiroWork Desktop.app"
-in Terminal.
+You only need to do the right-click step ONCE. After that, double-
+click works normally from Launchpad, Dock, Applications, or Spotlight.
+
+---
+
+Why? This app isn't signed with a paid Apple Developer ID (99 USD/year).
+macOS shows a warning for any unsigned app on first launch. The
+right-click -> Open flow is Apple's built-in way to approve it.
+
+If macOS still blocks the app with a "damaged" error, open Terminal
+and run:
+
+    xattr -cr "/Applications/KiroWork Desktop.app"
+
+then try right-click -> Open again.
 EOF
 
-# Clear the quarantine flag on the helper so double-click actually runs
-# (the flag is inherited from whatever network path reached the user).
-xattr -cr "$STAGING/First-run fix.command" || true
-
-# Rebuild a read-only DMG. We overwrite the Tauri-produced one in-place.
+# Rebuild a read-only DMG. Overwrites the Tauri-produced one in-place.
 echo "Creating DMG at $OUTPUT_DMG"
 rm -f "$OUTPUT_DMG"
 hdiutil create \
