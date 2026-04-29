@@ -3,6 +3,6 @@
   "description": "AI agent for generating professional PPTX presentations",
   "tools": ["fs_read", "fs_write", "execute_bash"],
   "resources": [
-    "skill://~/.kiro/skills/ppt-generator/SKILL.md"
+    "skill://.kiro/skills/ppt-generator/SKILL.md"
   ]
 }
