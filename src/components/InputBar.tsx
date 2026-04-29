@@ -63,15 +63,14 @@ function blobToBase64(blob: Blob): Promise<{ base64: string; dataUrl: string }> 
   });
 }
 
-function PaperclipIcon({ className = "w-4 h-4" }: { className?: string }) {
+function PlusIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 16 16" fill="none" className={className}>
       <path
-        d="M10.5 5L6.4 9.1a2 2 0 1 0 2.8 2.8l5-5a4 4 0 1 0-5.6-5.6L3 7a6 6 0 0 0 8.5 8.5L14 13"
+        d="M8 3.5v9M3.5 8h9"
         stroke="currentColor"
-        strokeWidth="1.5"
+        strokeWidth="1.6"
         strokeLinecap="round"
-        strokeLinejoin="round"
       />
     </svg>
   );
@@ -236,10 +235,11 @@ export function InputBar() {
         )}
 
         {/* Main input container — floating pill.
-         *  transform-gpu + will-change + contain:paint promote this subtree to
-         *  its own compositor layer so backdrop-blur doesn't re-rasterize on
-         *  every message stream-update behind it. */}
-        <div className={`flex items-end gap-0 rounded-2xl border backdrop-blur-md transform-gpu will-change-transform [contain:paint] transition-colors duration-150 bg-bg-elevated/85 shadow-lg shadow-black/10 dark:shadow-black/30 ${
+         *  isolation:isolate gives it its own stacking context so backdrop-blur
+         *  doesn't re-rasterize on every message stream behind it. Avoiding
+         *  contain:paint / will-change-transform here because in WKWebView
+         *  they can interfere with pointer-event dispatch to nested buttons. */}
+        <div className={`flex items-end gap-0 rounded-2xl border backdrop-blur-md isolate transition-colors duration-150 bg-bg-elevated/85 shadow-lg shadow-black/10 dark:shadow-black/30 ${
           sessionId
             ? "border-border/70 focus-within:border-accent/60 focus-within:shadow-accent/10"
             : "border-border/40 opacity-60"
@@ -249,9 +249,10 @@ export function InputBar() {
             onClick={pickFiles}
             disabled={!sessionId || attaching}
             title="Attach image"
-            className="self-center flex-shrink-0 ml-2 w-7 h-7 flex items-center justify-center rounded-full text-fg-subtle/60 hover:text-fg-muted hover:bg-bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+            aria-label="Attach image"
+            className="self-center flex-shrink-0 ml-1.5 w-8 h-8 flex items-center justify-center rounded-full text-fg-subtle/70 hover:text-fg hover:bg-bg-muted/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
           >
-            <PaperclipIcon className="w-4 h-4" />
+            <PlusIcon className="w-[18px] h-[18px]" />
           </button>
 
           {/* Textarea */}

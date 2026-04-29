@@ -76,7 +76,7 @@ export function Toolbar({
   const currentMode = availableModes.find((m) => m.id === currentModeId);
 
   return (
-    <div className="border-b border-border/60 bg-bg-elevated/90 backdrop-blur-sm px-3 py-2 flex items-center gap-2 text-xs">
+    <div className="relative z-10 border-b border-border/60 bg-bg-elevated/90 backdrop-blur-sm px-3 py-2 flex items-center gap-2 text-xs">
 
       {/* Left: sidebar toggle */}
       {sidebarCollapsed && (
@@ -104,25 +104,27 @@ export function Toolbar({
         ) : (
           <span className="text-fg-subtle">no folder</span>
         )}
-        <button
-          onClick={pickFolder}
-          disabled={busy}
-          title="Open folder"
-          className="btn-icon w-5 h-5 ml-0.5 text-fg-subtle hover:text-accent hover:bg-accent/10 rounded-full"
-        >
-          {busy ? (
-            <svg width="10" height="10" viewBox="0 0 16 16" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="8" cy="8" r="6" strokeOpacity="0.3" />
-              <path d="M8 2a6 6 0 0 1 6 6" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 6h12M2 6l3-3M2 6l3 3" />
-              <rect x="2" y="6" width="12" height="8" rx="1.5" />
-            </svg>
-          )}
-        </button>
       </div>
+
+      {/* Open / switch folder — standalone icon button, matches sidebar toggle size */}
+      <button
+        onClick={pickFolder}
+        disabled={busy}
+        title={workspacePath ? "Switch folder" : "Open folder"}
+        aria-label={workspacePath ? "Switch folder" : "Open folder"}
+        className="btn-icon w-7 h-7 flex-shrink-0 text-fg-subtle hover:text-accent hover:bg-accent/10 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        {busy ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="8" cy="8" r="6" strokeOpacity="0.3" />
+            <path d="M8 2a6 6 0 0 1 6 6" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1.5 4.5a1 1 0 0 1 1-1H6l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-8z" />
+          </svg>
+        )}
+      </button>
 
       {/* Model + agent dropdowns */}
       {availableModels.length > 0 && (
