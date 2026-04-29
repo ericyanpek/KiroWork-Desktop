@@ -13,7 +13,13 @@ function basename(p: string): string {
   return i >= 0 ? trimmed.slice(i + 1) : trimmed;
 }
 
-export function Toolbar() {
+export function Toolbar({
+  sidebarCollapsed,
+  onExpandSidebar,
+}: {
+  sidebarCollapsed: boolean;
+  onExpandSidebar: () => void;
+}) {
   const sessionId = useApp((s) => s.sessionId);
   const workspacePath = useApp((s) => s.workspacePath);
   const currentModelId = useApp((s) => s.currentModelId);
@@ -71,6 +77,23 @@ export function Toolbar() {
 
   return (
     <div className="border-b border-border bg-bg-elevated/80 backdrop-blur px-4 py-2.5 flex items-center gap-3 text-xs">
+      {sidebarCollapsed && (
+        <>
+          <button
+            onClick={onExpandSidebar}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+            className="text-fg-subtle hover:text-fg transition-colors p-1 rounded hover:bg-bg-muted -ml-1"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+              <path d="M6 3v10" />
+              <path d="M8.5 6L10.5 8L8.5 10" />
+            </svg>
+          </button>
+          <span className="text-fg-subtle">·</span>
+        </>
+      )}
       <span className="inline-flex items-center gap-1.5 text-fg-muted">
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_hsl(149_65%_52%/0.8)]" />
         connected
