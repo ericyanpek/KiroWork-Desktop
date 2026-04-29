@@ -211,8 +211,8 @@ export function InputBar() {
   }
 
   return (
-    <div className="border-t border-border/50 bg-bg-elevated/95 px-4 py-3">
-      <div className="mx-auto max-w-3xl">
+    <div className="relative px-4 pt-6 pb-4 bg-gradient-to-t from-bg via-bg/92 to-transparent pointer-events-none">
+      <div className="mx-auto max-w-3xl pointer-events-auto">
         {/* Attachment previews */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2.5 px-1">
@@ -235,9 +235,14 @@ export function InputBar() {
           </div>
         )}
 
-        {/* Main input container — unified pill */}
-        <div className={`flex items-end gap-0 rounded-2xl border transition-colors duration-150 bg-bg ${
-          sessionId ? "border-border/70 focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_hsl(var(--accent)/0.08)]" : "border-border/40 opacity-60"
+        {/* Main input container — floating pill.
+         *  transform-gpu + will-change + contain:paint promote this subtree to
+         *  its own compositor layer so backdrop-blur doesn't re-rasterize on
+         *  every message stream-update behind it. */}
+        <div className={`flex items-end gap-0 rounded-2xl border backdrop-blur-md transform-gpu will-change-transform [contain:paint] transition-colors duration-150 bg-bg-elevated/85 shadow-lg shadow-black/10 dark:shadow-black/30 ${
+          sessionId
+            ? "border-border/70 focus-within:border-accent/60 focus-within:shadow-accent/10"
+            : "border-border/40 opacity-60"
         }`}>
           {/* Attach button — sits left, vertically centered */}
           <button

@@ -101,25 +101,57 @@ function DiffBlock({ chunk, initiallyExpanded }: { chunk: DiffChunk; initiallyEx
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="10"
+      height="10"
+      viewBox="0 0 10 10"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`transition-transform duration-150 ${open ? "rotate-90" : ""}`}
+    >
+      <path d="M3.5 2l3 3-3 3" />
+    </svg>
+  );
+}
+
 export function ToolCallCard({ call }: { call: ToolCallView }) {
   const content = (call.content ?? []) as ToolCallContent[];
   const diffs = content.filter(isDiffChunk);
   const isEditWithDiff = call.kind === "edit" && diffs.length > 0;
+  // Auto-collapse finished calls; keep running ones open so the user can watch progress.
+  const [expanded, setExpanded] = useState(call.status !== "completed");
 
   if (isEditWithDiff) {
     return (
       <div className="w-full max-w-3xl flex flex-col gap-1.5 px-1">
-        <div className="text-xs text-fg-subtle font-mono flex items-center gap-2">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="group text-xs text-fg-subtle font-mono flex items-center gap-2 hover:text-fg-muted transition-colors"
+          aria-expanded={expanded}
+        >
+          <ChevronIcon open={expanded} />
           {statusDot(call.status)}
           <span className="opacity-70">Edit</span>
           <span className="text-fg-muted">{call.title || call.kind}</span>
           <span className="text-fg-subtle">({call.status})</span>
-        </div>
-        <div className="flex flex-col gap-2">
-          {diffs.map((d, i) => (
-            <DiffBlock key={i} chunk={d} initiallyExpanded={diffs.length === 1} />
-          ))}
-        </div>
+          {!expanded && diffs.length > 0 && (
+            <span className="text-fg-subtle/70">
+              · {diffs.length} file{diffs.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </button>
+        {expanded && (
+          <div className="flex flex-col gap-2">
+            {diffs.map((d, i) => (
+              <DiffBlock key={i} chunk={d} initiallyExpanded={diffs.length === 1} />
+            ))}
+          </div>
+        )}
       </div>
     );
   }

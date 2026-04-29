@@ -238,7 +238,21 @@ export const useApp = create<AppState>((set) => ({
 
   applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
 
-  setPersistedSessions: (list) => set({ persistedSessions: list }),
+  setPersistedSessions: (list) =>
+    set((s) => {
+      // The Rust scanner hides sessions with a live `.lock` file. Any session
+      // we've already seen in this app session should stick around — once a
+      // user's touched it, it shouldn't vanish just because kiro-cli grabbed
+      // the lock. Merge the incoming list on top of what we already have,
+      // keyed by sessionId, and sort newest first.
+      const byId = new Map<string, SessionMeta>();
+      for (const m of s.persistedSessions) byId.set(m.sessionId, m);
+      for (const m of list) byId.set(m.sessionId, m); // fresh meta wins
+      const merged = Array.from(byId.values()).sort((a, b) =>
+        (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""),
+      );
+      return { persistedSessions: merged };
+    }),
 
   removePersistedSession: (sessionId) =>
     set((s) => ({

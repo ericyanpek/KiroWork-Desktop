@@ -14,8 +14,8 @@ export function ChatPanel() {
   }, [messages]);
 
   return (
-    <div className="flex h-full flex-col kiro-ambient">
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+    <div className="relative flex h-full flex-col kiro-ambient">
+      <div className="flex-1 overflow-y-auto px-4 pt-6 pb-40">
         <div className="mx-auto max-w-3xl flex flex-col gap-3">
           {messages.length === 0 && (
             <div className="flex flex-col items-center gap-3 mt-20 text-center">
@@ -34,10 +34,14 @@ export function ChatPanel() {
               <span className="font-medium">{error.kind}:</span> {error.message}
             </div>
           )}
-          <div ref={bottomRef} />
+          {/* scroll-mb reserves space below the anchor so auto-scroll leaves
+           *  the latest bubble visually above the floating InputBar pill. */}
+          <div ref={bottomRef} className="scroll-mb-32" />
         </div>
       </div>
-      <InputBar />
+      <div className="absolute inset-x-0 bottom-0 pointer-events-none">
+        <InputBar />
+      </div>
     </div>
   );
 }
