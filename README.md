@@ -3,7 +3,7 @@
 > **Kiro AI 的 macOS 原生客户端** — 将 `kiro-cli` 的全部 Agent 能力封装进一个零终端操作的对话界面。基于 Tauri 2 IPC 桥接 Kiro ACP 协议，前端 React 19 + TypeScript，后端 Rust 异步运行时。
 
 ![platform](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
-![version](https://img.shields.io/badge/version-0.2.0-blueviolet)
+![version](https://img.shields.io/badge/version-0.3.0-blueviolet)
 ![stack](https://img.shields.io/badge/stack-Tauri%202%20%2B%20React%2019%20%2B%20Rust-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -13,8 +13,9 @@
 
 | 特性 | 说明 |
 |------|------|
-| 🗂 **多会话管理** | 侧边栏列出所有持久化会话，支持切换、恢复、删除；会话历史通过本地 JSONL 离线重建 |
-| 🔧 **实时工具调用卡片** | Agent 每次调用工具时自动渲染入参、执行状态（running / success / error）及输出 diff |
+| 🗂 **多会话管理** | 侧边栏列出所有持久化会话，顶部搜索框按标题/路径即时过滤；切换、恢复、删除；会话历史通过本地 JSONL 离线重建。切换活跃会话后会话条目保持不消失 |
+| 🔧 **实时工具调用卡片** | Agent 每次调用工具时自动渲染入参、执行状态（running / success / error）及输出 diff；完成后的编辑卡片自动折叠，点标题可展开 |
+| 💬 **悬浮输入药丸** | 底部输入框以独立合成层渲染，流式回复不会与背后的毛玻璃重绘冲突；最新气泡自动停在药丸上方，避免被遮挡 |
 | 🤖 **模型 & Agent 模式热切换** | 顶栏下拉直接切换模型和 Agent 模式，无需重建会话上下文 |
 | 🧩 **Skills / MCP / Steering 侧边栏** | 基于 macOS FSEvents 实时监听 `.kiro/` 目录变更，自动刷新已安装的 Skills、MCP Server 和 Steering 配置 |
 | 🖼 **多模态输入** | 支持文件选择器或剪贴板粘贴上传图片，附缩略图预览，编码为 base64 随 prompt 一同发送 |
@@ -106,7 +107,7 @@ npm run bundle:mac
 ```
 src-tauri/target/release/bundle/
 ├── macos/KiroWork Desktop.app
-└── dmg/KiroWork Desktop_0.2.0_aarch64.dmg
+└── dmg/KiroWork Desktop_0.3.0_aarch64.dmg
 ```
 
 ---
