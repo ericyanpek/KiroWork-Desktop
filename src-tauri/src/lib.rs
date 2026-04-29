@@ -5,6 +5,7 @@ mod error;
 mod kiro_discovery;
 mod session_store;
 mod workspace_scanner;
+mod workspace_watcher;
 
 use tracing_subscriber::EnvFilter;
 
@@ -22,6 +23,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(commands::acp_state())
+        .manage(commands::cancel_state())
         .invoke_handler(tauri::generate_handler![
             commands::acp_connect,
             commands::acp_disconnect,
@@ -32,8 +34,11 @@ pub fn run() {
             commands::set_model,
             commands::set_mode,
             commands::list_persisted_sessions,
+            commands::delete_session,
             commands::load_session,
             commands::scan_workspace,
+            commands::watch_workspace,
+            commands::unwatch_workspace,
             commands::read_file_bytes,
             auth_manager::check_auth,
             auth_manager::trigger_login,

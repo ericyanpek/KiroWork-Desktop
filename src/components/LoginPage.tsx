@@ -14,6 +14,8 @@ export function LoginPage({
   const [polling, setPolling] = useState(false);
   const [pollError, setPollError] = useState<string | null>(null);
   const timerRef = useRef<number | null>(null);
+  const pollCountRef = useRef(0);
+  const POLL_MAX = 60; // 60 × 3s = 3 minutes
 
   useEffect(() => {
     return () => {
@@ -30,7 +32,15 @@ export function LoginPage({
       return;
     }
     setPolling(true);
+    pollCountRef.current = 0;
     timerRef.current = window.setInterval(async () => {
+      pollCountRef.current += 1;
+      if (pollCountRef.current >= POLL_MAX) {
+        if (timerRef.current !== null) window.clearInterval(timerRef.current);
+        setPolling(false);
+        setPollError("Login timed out after 3 minutes. Please try again.");
+        return;
+      }
       try {
         const r = await checkAuth();
         if (r.status === "ok") {
@@ -79,7 +89,7 @@ export function LoginPage({
             <span className="text-xs text-fg-subtle">Polling every 3s…</span>
           )}
         </div>
-        {pollError && <p className="text-sm text-red-400">{pollError}</p>}
+        {pollError && <p className="text-sm text-status-error">{pollError}</p>}
         <p className="text-xs text-fg-subtle">
           Prefer the terminal? Run <code className="text-accent-strong">kiro-cli login</code> there, then press Retry.
         </p>

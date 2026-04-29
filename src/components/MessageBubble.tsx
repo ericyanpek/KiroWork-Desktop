@@ -28,11 +28,11 @@ export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const align = isUser ? "items-end" : "items-start";
   const bubbleClass = isUser
-    ? "bg-accent text-accent-foreground"
-    : "bg-bg-elevated text-fg border border-border";
+    ? "bg-accent/90 text-accent-foreground"
+    : "bg-bg-elevated text-fg border border-border/70 shadow-sm";
 
   return (
-    <div className={`flex flex-col ${align} gap-1`}>
+    <div className={`flex flex-col ${align} gap-2`}>
       {message.toolCalls && message.toolCalls.length > 0 && (
         <div className="w-full max-w-3xl flex flex-col gap-2 px-1">
           {message.toolCalls.map((tc) => (
@@ -41,10 +41,10 @@ export function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
       <div
-        className={`max-w-3xl rounded-2xl px-4 py-2 text-sm leading-relaxed shadow-sm ${bubbleClass}`}
+        className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed text-[13px] ${bubbleClass}`}
       >
         {isUser ? (
-          <span className="whitespace-pre-wrap break-words">{message.text}</span>
+          <span className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{message.text}</span>
         ) : (
           <div className="kiro-prose prose prose-sm max-w-none dark:prose-invert">
             {message.text ? (

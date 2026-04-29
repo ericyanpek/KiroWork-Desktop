@@ -76,72 +76,71 @@ export function Toolbar({
   const currentMode = availableModes.find((m) => m.id === currentModeId);
 
   return (
-    <div className="border-b border-border bg-bg-elevated/80 backdrop-blur px-4 py-2.5 flex items-center gap-3 text-xs">
+    <div className="border-b border-border/60 bg-bg-elevated/90 backdrop-blur-sm px-3 py-2 flex items-center gap-2 text-xs">
+
+      {/* Left: sidebar toggle */}
       {sidebarCollapsed && (
-        <>
-          <button
-            onClick={onExpandSidebar}
-            title="Show sidebar"
-            aria-label="Show sidebar"
-            className="text-fg-subtle hover:text-fg transition-colors p-1 rounded hover:bg-bg-muted -ml-1"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-              <path d="M6 3v10" />
-              <path d="M8.5 6L10.5 8L8.5 10" />
-            </svg>
-          </button>
-          <span className="text-fg-subtle">·</span>
-        </>
-      )}
-      <span className="inline-flex items-center gap-1.5 text-fg-muted">
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_6px_hsl(149_65%_52%/0.8)]" />
-        connected
-      </span>
-      <span className="text-fg-subtle">·</span>
-      <button
-        onClick={pickFolder}
-        disabled={busy}
-        className="rounded-md border border-border bg-bg px-3 py-1 text-xs font-medium text-fg-muted hover:text-fg hover:border-accent/50 disabled:opacity-50 transition-colors"
-      >
-        {busy ? "Opening…" : "Open Folder"}
-      </button>
-      {workspacePath && (
-        <span
-          className="truncate text-fg-subtle max-w-[240px]"
-          title={workspacePath}
+        <button
+          onClick={onExpandSidebar}
+          title="Show sidebar"
+          aria-label="Show sidebar"
+          className="btn-icon w-7 h-7 text-fg-subtle hover:text-fg hover:bg-bg-muted/70 flex-shrink-0"
         >
-          <code className="text-[11px] text-fg-muted">{basename(workspacePath)}</code>
-        </span>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+            <path d="M6 3v10" />
+            <path d="M8.5 6L10.5 8L8.5 10" />
+          </svg>
+        </button>
       )}
 
+      {/* Connection + workspace pill */}
+      <div className="flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-muted/30 px-2.5 py-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)] flex-shrink-0" />
+        {workspacePath ? (
+          <span className="text-fg-muted font-medium truncate max-w-[160px]" title={workspacePath}>
+            {basename(workspacePath)}
+          </span>
+        ) : (
+          <span className="text-fg-subtle">no folder</span>
+        )}
+        <button
+          onClick={pickFolder}
+          disabled={busy}
+          title="Open folder"
+          className="btn-icon w-5 h-5 ml-0.5 text-fg-subtle hover:text-accent hover:bg-accent/10 rounded-full"
+        >
+          {busy ? (
+            <svg width="10" height="10" viewBox="0 0 16 16" className="animate-spin" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="8" cy="8" r="6" strokeOpacity="0.3" />
+              <path d="M8 2a6 6 0 0 1 6 6" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 6h12M2 6l3-3M2 6l3 3" />
+              <rect x="2" y="6" width="12" height="8" rx="1.5" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Model + agent dropdowns */}
       {availableModels.length > 0 && (
         <Dropdown
           label={
             <span className="flex items-center gap-1">
-              <span className="text-fg-subtle">model</span>
-              <span className="text-fg">{currentModel?.name ?? "…"}</span>
+              <span className="text-fg-subtle/70">model</span>
+              <span className="text-fg font-medium">{currentModel?.name ?? "…"}</span>
             </span>
           }
         >
           {(close) => (
             <>
               {availableModels.map((m) => (
-                <DropdownItem
-                  key={m.modelId}
-                  active={m.modelId === currentModelId}
-                  onClick={() => {
-                    close();
-                    changeModel(m.modelId);
-                  }}
-                >
-                  <div className="flex flex-col">
+                <DropdownItem key={m.modelId} active={m.modelId === currentModelId} onClick={() => { close(); changeModel(m.modelId); }}>
+                  <div className="flex flex-col gap-0.5">
                     <span className="font-medium">{m.name}</span>
-                    {m.description && (
-                      <span className="text-[10px] text-fg-subtle line-clamp-1">
-                        {m.description}
-                      </span>
-                    )}
+                    {m.description && <span className="text-[10px] text-fg-subtle line-clamp-1">{m.description}</span>}
                   </div>
                 </DropdownItem>
               ))}
@@ -154,29 +153,18 @@ export function Toolbar({
         <Dropdown
           label={
             <span className="flex items-center gap-1">
-              <span className="text-fg-subtle">agent</span>
-              <span className="text-fg">{currentMode?.name ?? "…"}</span>
+              <span className="text-fg-subtle/70">agent</span>
+              <span className="text-fg font-medium">{currentMode?.name ?? "…"}</span>
             </span>
           }
         >
           {(close) => (
             <>
               {availableModes.map((m) => (
-                <DropdownItem
-                  key={m.id}
-                  active={m.id === currentModeId}
-                  onClick={() => {
-                    close();
-                    changeMode(m.id);
-                  }}
-                >
-                  <div className="flex flex-col">
+                <DropdownItem key={m.id} active={m.id === currentModeId} onClick={() => { close(); changeMode(m.id); }}>
+                  <div className="flex flex-col gap-0.5">
                     <span className="font-medium">{m.name}</span>
-                    {m.description && (
-                      <span className="text-[10px] text-fg-subtle line-clamp-1">
-                        {m.description}
-                      </span>
-                    )}
+                    {m.description && <span className="text-[10px] text-fg-subtle line-clamp-1">{m.description}</span>}
                   </div>
                 </DropdownItem>
               ))}
@@ -185,11 +173,16 @@ export function Toolbar({
         </Dropdown>
       )}
 
-      <div className="ml-auto flex items-center gap-3">
+      {/* Right: context gauge + session id */}
+      <div className="ml-auto flex items-center gap-2.5">
         <ContextGauge percentage={contextUsagePercentage} />
         {sessionId && (
-          <span className="text-fg-subtle font-mono text-[11px]">
-            {sessionId.slice(0, 8)}
+          <span
+            className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-bg-muted/30 px-2 py-0.5 font-mono text-[10px] text-fg-subtle/40 tabular-nums select-none"
+            title={sessionId}
+          >
+            <span className="opacity-50">#</span>
+            {sessionId.slice(0, 7)}
           </span>
         )}
       </div>

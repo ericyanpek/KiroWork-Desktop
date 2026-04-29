@@ -1,42 +1,107 @@
-# KiroWork Desktop
+# ⚡ KiroWork Desktop
 
-A Mac app that wraps [`kiro-cli`](https://kiro.dev) in a chat-first UI, so
-non-technical users can interact with a Kiro agent without touching a
-terminal. Tauri 2 + React 19 + TypeScript + Rust.
+> **Kiro AI 的 macOS 原生客户端** — 将 `kiro-cli` 的全部 Agent 能力封装进一个零终端操作的对话界面。基于 Tauri 2 IPC 桥接 Kiro ACP 协议，前端 React 19 + TypeScript，后端 Rust 异步运行时。
 
-See [DESIGN.md](./DESIGN.md) for the architecture.
+![platform](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
+![version](https://img.shields.io/badge/version-0.2.0-blueviolet)
+![stack](https://img.shields.io/badge/stack-Tauri%202%20%2B%20React%2019%20%2B%20Rust-orange)
+![license](https://img.shields.io/badge/license-MIT-green)
 
-## Prerequisites
+---
 
-- macOS (Apple Silicon or Intel)
-- [`kiro-cli`](https://kiro.dev) installed at `~/.local/bin/kiro-cli`
-- Node 20+ and Rust stable (`rustup` recommended)
+## ✨ 核心特性
 
-## Develop
+| 特性 | 说明 |
+|------|------|
+| 🗂 **多会话管理** | 侧边栏列出所有持久化会话，支持切换、恢复、删除；会话历史通过本地 JSONL 离线重建 |
+| 🔧 **实时工具调用卡片** | Agent 每次调用工具时自动渲染入参、执行状态（running / success / error）及输出 diff |
+| 🤖 **模型 & Agent 模式热切换** | 顶栏下拉直接切换模型和 Agent 模式，无需重建会话上下文 |
+| 🧩 **Skills / MCP / Steering 侧边栏** | 基于 macOS FSEvents 实时监听 `.kiro/` 目录变更，自动刷新已安装的 Skills、MCP Server 和 Steering 配置 |
+| 🖼 **多模态输入** | 支持文件选择器或剪贴板粘贴上传图片，附缩略图预览，编码为 base64 随 prompt 一同发送 |
+| 📊 **上下文用量指示** | 顶栏实时渲染 context window 使用百分比，超过阈值自动切换警告色 |
+| 🛑 **非阻塞 Stop** | `session/cancel` 通过独立 `CancelSender` 通道发送，不竞争 `session/prompt` 持有的 ACP 锁 |
+| 🈶 **IME 兼容** | 基于时间戳的输入法确认守卫，正确处理 macOS WKWebView 上 `compositionend` 早于 `keydown` 的时序问题 |
+
+---
+
+## 🎬 演示
+
+**① 开启一个项目**
+
+<video src="https://github.com/user-attachments/assets/d2ce553a-621f-429a-a139-c73e229f5081" controls width="100%" style="border-radius:12px"></video>
+
+**② 通过自然语言安装 MCP**
+
+<video src="https://github.com/user-attachments/assets/2a19b9c4-a684-4cb5-b20d-3c69b41928af" controls width="100%" style="border-radius:12px"></video>
+
+---
+
+## 🔧 前置依赖
+
+- macOS 12+（Apple Silicon 或 Intel）
+- [`kiro-cli`](https://kiro.dev) 已安装（默认路径 `~/.local/bin/kiro-cli`）
+- Node.js 20+
+- Rust stable（推荐通过 `rustup` 安装）
+
+---
+
+## 🚀 下载
+
+> 仅支持 macOS（Apple Silicon / Intel）
+
+**[⬇ 下载最新版 DMG → GitHub Releases](https://github.com/ericyanpek/KiroWork-Desktop/releases/latest)**
+
+安装：
+1. 打开 DMG，将 **KiroWork Desktop.app** 拖入 `/Applications`
+2. **首次启动必须右键 → 打开**，在系统弹窗中确认（ad-hoc 签名绕过 Gatekeeper）
+3. 后续双击正常启动
+
+> 若系统提示「已损坏」，终端执行 `xattr -cr "/Applications/KiroWork Desktop.app"` 后重试。
+
+---
+
+## 🏗 架构概览
+
+```
+┌─────────────────────────────────────────────────────┐
+│                  React 19 Frontend                  │
+│  Zustand store ←→ tauri-bridge ←→ Tauri IPC layer  │
+└───────────────────────┬─────────────────────────────┘
+                        │ invoke / emit
+┌───────────────────────▼─────────────────────────────┐
+│               Rust Backend (Tokio async)             │
+│  AcpClient ──► kiro-cli acp (JSON-RPC 2.0 / stdio) │
+│  SessionStore ──► ~/.kiro/sessions/cli/*.jsonl      │
+│  WorkspaceWatcher ──► FSEvents → Tauri event bus    │
+└─────────────────────────────────────────────────────┘
+```
+
+**通信协议**：Tauri IPC（`invoke` / `emit`）封装 JSON-RPC 2.0，通过 kiro-cli 子进程的 stdin/stdout 与 Kiro ACP 协议交互。响应通过 `DashMap<u64, oneshot::Sender>` 按请求 ID 路由；流式通知（`session/update`）直接转发为 Tauri 事件。
+
+---
+
+## 💻 本地开发
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-The app will auto-connect to the Kiro CLI and walk you through login on first
-launch.
+首次启动自动执行 `initialize` 握手连接 Kiro ACP，未认证时跳转登录页，轮询 `check_auth` 直至 OAuth 完成。
 
-## Build a distributable
+---
 
-There are two build flavours:
+## 📦 打包
 
 ```sh
-# Default Tauri build — .app + a plain .dmg (drag-to-Applications only).
+# 标准打包 — 生成 .app + .dmg
 npm run tauri build
 
-# Recommended for handing the DMG to someone else.
-# Same .app, but the .dmg is repacked with a README and a first-run-fix
-# helper so macOS's Gatekeeper doesn't block recipients.
+# 推荐分发版本 — DMG 内附首次运行说明
 npm run bundle:mac
 ```
 
-Outputs land under:
+产物：
 
 ```
 src-tauri/target/release/bundle/
@@ -44,87 +109,32 @@ src-tauri/target/release/bundle/
 └── dmg/KiroWork Desktop_0.2.0_aarch64.dmg
 ```
 
-## Distributing the DMG to other people
+---
 
-> **Short version**: tell recipients to drag the app to Applications, then
-> **right-click → Open** on the first launch.
-
-### How the unsigned bundle behaves
-
-The app is ad-hoc signed (`bundle.macOS.signingIdentity: "-"` in
-`tauri.conf.json`) but **not signed with an Apple Developer ID** (which
-costs 99 USD/year). On first launch, macOS shows an "unidentified
-developer" dialog. Apple's built-in escape hatch is **right-click → Open**:
-choose Open from the context menu, then click Open in the confirmation
-dialog. Done once, then double-click works forever after.
-
-### Why not a .command helper?
-
-An earlier attempt bundled a `First-run fix.command` that cleared
-`com.apple.quarantine`. Don't do this — macOS applies a **stricter Gatekeeper
-policy to double-clicked `.command` files than to `.app` bundles**, with
-**no right-click → Open escape hatch**. Unsigned shell scripts from a
-quarantined DMG get blocked silently every time. Ad-hoc signing the app
-is the only approach that actually works without paying Apple.
-
-### DMG contents
-
-`npm run bundle:mac` produces a DMG with:
+## 📁 项目结构
 
 ```
-KiroWork Desktop 0.2.0/
-├── KiroWork Desktop.app
-├── Applications        ← symlink, for drag-install
-└── READ ME FIRST.txt
-```
+src/
+  components/        AuthGate · Toolbar · Sidebar · ChatPanel · InputBar · ToolCallCard …
+  hooks/             useAcp · useWorkspaceScan · useOpenWorkspace · useIsDark …
+  stores/            Zustand app store（会话状态 / ACP 状态 / 错误）
+  lib/               tauri-bridge（唯一 IPC 边界）· shiki（懒加载语法高亮）
+  types/acp.ts       ACP 协议 wire types
 
-**Instructions for recipients** (paste these alongside the DMG link):
+src-tauri/src/
+  acp_client.rs      kiro-cli 子进程生命周期 + JSON-RPC 帧解析 + 事件路由
+  commands.rs        16 个 Tauri command handler
+  session_store.rs   ~/.kiro/sessions/cli/ JSONL 解析与会话元数据
+  workspace_scanner.rs  .kiro/ 静态扫描（Skills / MCP / Steering frontmatter）
+  workspace_watcher.rs  FSEvents 动态监听 → workspace-manifest-updated 事件
+  auth_manager.rs    kiro-cli 认证状态检测与登录触发
 
-1. Open the DMG.
-2. Drag **KiroWork Desktop.app** into the **Applications** folder.
-3. Open Applications, **right-click KiroWork Desktop → Open**, click
-   **Open** in the confirmation dialog.
-4. After the first launch, open it normally from Launchpad / Dock /
-   Spotlight.
-
-If macOS still blocks with a "damaged" error, in Terminal run:
-
-```sh
-xattr -cr "/Applications/KiroWork Desktop.app"
-```
-
-then try right-click → Open again.
-
-### Eliminating the warning entirely
-
-To skip the first-launch warning, join the
-[Apple Developer Program](https://developer.apple.com/programs/) (99 USD/year),
-request a **Developer ID Application** certificate, replace the `"-"` in
-`bundle.macOS.signingIdentity` with your identity, and notarize with
-`xcrun notarytool` + `xcrun stapler`. See
-[Tauri's macOS signing guide](https://tauri.app/distribute/sign/macos/).
-
-## Project layout
-
-```
-src/                         # React + TS frontend
-  components/                  UI (AuthGate, Toolbar, Sidebar, ChatPanel, …)
-  hooks/                       useAcp, useTheme, useRestoreSession, …
-  stores/                      zustand app store
-  lib/                         tauri-bridge, shiki
-  types/acp.ts                 wire types mirroring kiro-cli's ACP protocol
-src-tauri/src/               # Rust backend
-  acp_client.rs                kiro-cli child process + JSON-RPC framing
-  commands.rs                  Tauri commands exposed to the frontend
-  session_store.rs             reads ~/.kiro/sessions/cli/ for replay
-  workspace_scanner.rs         scans project .kiro/ for skills/mcp/steering
-  auth_manager.rs              kiro-cli login state gate
 scripts/
-  repack-dmg.sh                post-processes Tauri's DMG with a README
+  repack-dmg.sh      Tauri DMG 后处理（注入 Applications 软链接 + 说明文件）
 ```
 
-## Recommended IDE setup
+---
 
-- [VS Code](https://code.visualstudio.com/)
-  + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode)
-  + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## 🛠 推荐 IDE 配置
+
+- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)

@@ -16,7 +16,7 @@ export function ChatPanel() {
   return (
     <div className="flex h-full flex-col kiro-ambient">
       <div className="flex-1 overflow-y-auto px-4 py-6">
-        <div className="mx-auto max-w-3xl flex flex-col gap-4">
+        <div className="mx-auto max-w-3xl flex flex-col gap-3">
           {messages.length === 0 && (
             <div className="flex flex-col items-center gap-3 mt-20 text-center">
               <KiroMascot size={96} />
@@ -30,7 +30,7 @@ export function ChatPanel() {
             <MessageBubble key={m.id} message={m} />
           ))}
           {error && (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+            <div className="rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-sm text-status-error">
               <span className="font-medium">{error.kind}:</span> {error.message}
             </div>
           )}

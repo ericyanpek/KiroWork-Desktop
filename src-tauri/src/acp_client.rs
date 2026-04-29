@@ -9,10 +9,36 @@ use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, Mutex};
 
 use crate::error::{AppError, AppResult};
 use crate::kiro_discovery;
+
+/// A lightweight handle that can send a `session/cancel` notification without
+/// holding the full `AcpClient` lock. Cloned and stored separately so that
+/// `session_cancel` never blocks on an in-flight `session_prompt`.
+#[derive(Clone)]
+pub struct CancelSender(Arc<Mutex<ChildStdin>>);
+
+impl CancelSender {
+    pub async fn send_cancel(&self, session_id: &str) -> AppResult<()> {
+        let frame = json!({
+            "jsonrpc": "2.0",
+            "method": "session/cancel",
+            "params": { "sessionId": session_id },
+        });
+        let mut line = serde_json::to_vec(&frame)?;
+        line.push(b'\n');
+        let mut stdin = self.0.lock().await;
+        stdin.write_all(&line).await.map_err(|e| AppError::AcpConnectionFailed {
+            message: format!("cancel write: {e}"),
+        })?;
+        stdin.flush().await.map_err(|e| AppError::AcpConnectionFailed {
+            message: format!("cancel flush: {e}"),
+        })?;
+        Ok(())
+    }
+}
 
 /// Wire-level response from `initialize`. Uses `camelCase` to match the ACP JSON.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +58,7 @@ type PendingResult = Result<Value, AppError>;
 
 pub struct AcpClient {
     _child: Child,
-    stdin: ChildStdin,
+    stdin: Arc<Mutex<ChildStdin>>,
     pending: Arc<DashMap<u64, oneshot::Sender<PendingResult>>>,
     next_id: AtomicU64,
 }
@@ -44,7 +70,7 @@ impl AcpClient {
     /// Phase 1 "Auto Accept" permission mode). We MUST NOT pass `-v`: verbose
     /// tracing writes to stdout and would corrupt the line-delimited JSON-RPC
     /// stream we parse.
-    pub async fn spawn(app: AppHandle) -> AppResult<(Self, InitializeResult)> {
+    pub async fn spawn(app: AppHandle) -> AppResult<(Self, CancelSender, InitializeResult)> {
         let path = kiro_discovery::find_kiro_cli()?;
         tracing::info!(path = %path.display(), "spawning kiro-cli acp");
 
@@ -79,6 +105,8 @@ impl AcpClient {
             })?;
 
         let pending: Arc<DashMap<u64, oneshot::Sender<PendingResult>>> = Arc::new(DashMap::new());
+        let stdin = Arc::new(Mutex::new(stdin));
+        let cancel_sender = CancelSender(stdin.clone());
 
         tokio::spawn(reader_loop(stdout, pending.clone(), app.clone()));
         tokio::spawn(stderr_loop(stderr));
@@ -113,11 +141,22 @@ impl AcpClient {
             }
         })?;
 
-        Ok((client, init))
+        Ok((client, cancel_sender, init))
     }
 
     /// Send a JSON-RPC request and await the matching response.
+    /// Pass `timeout` as `None` for requests that may run arbitrarily long
+    /// (e.g. `session/prompt`, which streams updates via notifications and only
+    /// resolves when the agent fully completes).
     pub async fn request(&mut self, method: &str, params: Value) -> AppResult<Value> {
+        self.request_with_timeout(method, params, Some(Duration::from_secs(120))).await
+    }
+
+    pub async fn request_no_timeout(&mut self, method: &str, params: Value) -> AppResult<Value> {
+        self.request_with_timeout(method, params, None).await
+    }
+
+    async fn request_with_timeout(&mut self, method: &str, params: Value, timeout: Option<Duration>) -> AppResult<Value> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let (tx, rx) = oneshot::channel();
         self.pending.insert(id, tx);
@@ -130,27 +169,40 @@ impl AcpClient {
         });
         let mut line = serde_json::to_vec(&frame)?;
         line.push(b'\n');
-        self.stdin.write_all(&line).await.map_err(|e| AppError::AcpConnectionFailed {
-            message: format!("write to child stdin: {e}"),
-        })?;
-        self.stdin
-            .flush()
-            .await
-            .map_err(|e| AppError::AcpConnectionFailed {
-                message: format!("flush child stdin: {e}"),
+        {
+            let mut stdin = self.stdin.lock().await;
+            stdin.write_all(&line).await.map_err(|e| AppError::AcpConnectionFailed {
+                message: format!("write to child stdin: {e}"),
             })?;
+            stdin
+                .flush()
+                .await
+                .map_err(|e| AppError::AcpConnectionFailed {
+                    message: format!("flush child stdin: {e}"),
+                })?;
+        }
 
-        match tokio::time::timeout(Duration::from_secs(120), rx).await {
-            Err(_) => {
-                self.pending.remove(&id);
-                Err(AppError::AcpTimeout {
-                    message: format!("{method} timed out"),
-                })
+        let recv = async {
+            match rx.await {
+                Err(_) => Err(AppError::AcpConnectionFailed {
+                    message: format!("{method}: reader dropped before response"),
+                }),
+                Ok(result) => result,
             }
-            Ok(Err(_)) => Err(AppError::AcpConnectionFailed {
-                message: format!("{method}: reader dropped before response"),
-            }),
-            Ok(Ok(result)) => result,
+        };
+
+        if let Some(dur) = timeout {
+            match tokio::time::timeout(dur, recv).await {
+                Err(_) => {
+                    self.pending.remove(&id);
+                    Err(AppError::AcpTimeout {
+                        message: format!("{method} timed out"),
+                    })
+                }
+                Ok(result) => result,
+            }
+        } else {
+            recv.await
         }
     }
 
@@ -164,8 +216,9 @@ impl AcpClient {
         });
         let mut line = serde_json::to_vec(&frame)?;
         line.push(b'\n');
-        self.stdin.write_all(&line).await?;
-        self.stdin.flush().await?;
+        let mut stdin = self.stdin.lock().await;
+        stdin.write_all(&line).await?;
+        stdin.flush().await?;
         Ok(())
     }
 }

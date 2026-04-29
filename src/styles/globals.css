@@ -16,26 +16,36 @@
   --border: 264 7% 86%;
   --border-strong: 263 7% 76%;
 
-  --accent: 264 100% 64%;         /* purple-500 */
-  --accent-strong: 270 79% 53%;   /* purple-600 */
+  --accent: 264 100% 64%;
+  --accent-strong: 270 79% 53%;
   --accent-fg: 0 0% 100%;
+
+  --status-success: 149 52% 44%;
+  --status-warning: 43 90% 50%;
+  --status-error: 353 72% 52%;
+  --status-info: 220 72% 56%;
 }
 
 .dark {
-  --bg: 266 14% 10%;               /* prey-900 */
-  --bg-elevated: 270 12% 13%;      /* prey-800 */
-  --bg-muted: 264 12% 16%;         /* prey-750 */
+  --bg: 266 14% 10%;
+  --bg-elevated: 270 12% 13%;
+  --bg-muted: 264 12% 16%;
 
-  --fg: 260 12% 95%;               /* prey-100 */
-  --fg-muted: 264 7% 86%;          /* prey-200 */
-  --fg-subtle: 263 7% 76%;         /* prey-300 */
+  --fg: 260 12% 95%;
+  --fg-muted: 264 7% 86%;
+  --fg-subtle: 263 7% 76%;
 
-  --border: 266 13% 21%;           /* prey-700 */
-  --border-strong: 267 6% 29%;     /* prey-600 */
+  --border: 266 13% 21%;
+  --border-strong: 267 6% 29%;
 
-  --accent: 263 100% 69%;          /* purple-400 — more vivid on dark */
-  --accent-strong: 264 100% 81%;   /* purple-300 */
+  --accent: 263 100% 69%;
+  --accent-strong: 264 100% 81%;
   --accent-fg: 266 14% 10%;
+
+  --status-success: 149 52% 52%;
+  --status-warning: 43 90% 58%;
+  --status-error: 353 72% 62%;
+  --status-info: 220 72% 68%;
 }
 
 html,
@@ -60,39 +70,82 @@ body {
 
 /* Thin, unobtrusive scrollbar that matches the theme. */
 *::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: hsl(var(--border-strong));
+  background: hsl(var(--border-strong) / 0.6);
   border-radius: 9999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--accent));
-  background-clip: padding-box;
-  border: 2px solid transparent;
+  background: hsl(var(--accent) / 0.5);
 }
 
 /* Subtle ambient gradient behind the app — adds dimension without noise. */
 .kiro-ambient {
   background:
-    radial-gradient(1200px 600px at 85% -10%, hsl(var(--accent) / 0.08), transparent 60%),
-    radial-gradient(900px 500px at -10% 100%, hsl(var(--accent-strong) / 0.06), transparent 55%),
+    radial-gradient(1200px 600px at 85% -10%, hsl(var(--accent) / 0.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 100%, hsl(var(--accent-strong) / 0.05), transparent 55%),
     hsl(var(--bg));
 }
 
-/* Typography tweaks for assistant markdown on dark cards. */
+/* Shared icon-button reset — used by toolbar, sidebar, input bar. */
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+}
+.btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;}
+
+/* Input container focus ring uses box-shadow so it animates smoothly */
+.input-ring {
+  transition: box-shadow 150ms ease, border-color 150ms ease;
+}
+
+/* Status dot colors via CSS vars — no raw tailwind colors in JS. */
+.status-dot-success { background-color: hsl(var(--status-success)); }
+.status-dot-warning { background-color: hsl(var(--status-warning)); }
+.status-dot-error   { background-color: hsl(var(--status-error)); }
+.status-dot-info    { background-color: hsl(var(--status-info)); }
+
+/* Badge variants */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.625rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  line-height: 1.4;
+}
+.badge-default  { background: hsl(var(--bg-muted));              color: hsl(var(--fg-subtle)); }
+.badge-accent   { background: hsl(var(--accent) / 0.15);         color: hsl(var(--accent-strong)); }
+.badge-success  { background: hsl(var(--status-success) / 0.15); color: hsl(var(--status-success)); }
+.badge-warning  { background: hsl(var(--status-warning) / 0.15); color: hsl(var(--status-warning)); }
+.badge-error    { background: hsl(var(--status-error)   / 0.15); color: hsl(var(--status-error)); }
+.badge-info     { background: hsl(var(--status-info)    / 0.15); color: hsl(var(--status-info)); }
+
+/* Typography tweaks for assistant markdown. */
 .kiro-prose {
   color: hsl(var(--fg));
+  font-size: 0.8125rem;
+  line-height: 1.65;
 }
 .kiro-prose code {
   background: hsl(var(--bg-muted));
   color: hsl(var(--accent-strong));
   padding: 0.1em 0.35em;
   border-radius: 4px;
-  font-size: 0.92em;
+  font-size: 0.875em;
 }
 .kiro-prose pre {
   background: hsl(var(--bg-muted)) !important;
@@ -113,3 +166,6 @@ body {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+.kiro-prose p { margin: 0.5em 0; }
+.kiro-prose p:first-child { margin-top: 0; }
+.kiro-prose p:last-child  { margin-bottom: 0; }

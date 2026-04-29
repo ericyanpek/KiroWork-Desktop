@@ -79,6 +79,7 @@ export interface AppState {
 
   // Phase2-a
   setPersistedSessions: (list: SessionMeta[]) => void;
+  removePersistedSession: (sessionId: string) => void;
 
   // Phase2-b
   setWorkspaceManifest: (m: WorkspaceManifest | null) => void;
@@ -238,6 +239,13 @@ export const useApp = create<AppState>((set) => ({
   applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
 
   setPersistedSessions: (list) => set({ persistedSessions: list }),
+
+  removePersistedSession: (sessionId) =>
+    set((s) => ({
+      persistedSessions: s.persistedSessions.filter(
+        (x) => x.sessionId !== sessionId,
+      ),
+    })),
 
   setWorkspaceManifest: (m) => set({ workspaceManifest: m }),
 

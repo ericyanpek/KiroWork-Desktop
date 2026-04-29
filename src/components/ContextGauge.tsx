@@ -1,23 +1,23 @@
-/**
- * Tiny context usage gauge — mirrors kiro-cli's own context % indicator.
- * Green under 70%, amber 70–90%, red above 90%. Omitted entirely when
- * kiro hasn't sent a metadata frame yet (avoids 0% flicker on boot).
- */
 export function ContextGauge({ percentage }: { percentage: number | null }) {
   if (percentage === null || Number.isNaN(percentage)) return null;
   const pct = Math.max(0, Math.min(100, percentage));
-  const color =
-    pct > 90 ? "bg-red-500" : pct > 70 ? "bg-yellow-500" : "bg-accent";
+  const barColor =
+    pct > 90 ? "bg-status-error" : pct > 70 ? "bg-status-warning" : "bg-accent";
+  const textColor =
+    pct > 90 ? "text-status-error" : pct > 70 ? "text-status-warning" : "text-fg-subtle";
+
   return (
-    <div className="flex items-center gap-1.5">
-      <div className="h-1.5 w-16 rounded-full bg-bg-muted overflow-hidden">
+    <div className="flex items-center gap-2" title={`Context usage: ${pct.toFixed(0)}%`}>
+      {/* Track */}
+      <div className="h-1 w-14 rounded-full bg-border/60 overflow-hidden">
         <div
-          className={`h-full ${color} transition-[width] duration-300`}
+          className={`h-full rounded-full ${barColor} transition-[width] duration-500 ease-out`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[11px] text-fg-subtle tabular-nums">
-        ctx {pct.toFixed(0)}%
+      {/* Label */}
+      <span className={`text-[10px] tabular-nums font-medium select-none ${textColor}`}>
+        {pct.toFixed(0)}%
       </span>
     </div>
   );

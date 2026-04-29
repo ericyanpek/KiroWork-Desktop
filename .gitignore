@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Kiro session files — generated at runtime, not part of the project
+.kiro/sessions/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

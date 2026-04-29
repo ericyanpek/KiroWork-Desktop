@@ -5,14 +5,21 @@ use serde_json::Value;
 use tauri::{AppHandle, State};
 use tokio::sync::Mutex;
 
-use crate::acp_client::{AcpClient, InitializeResult};
+use crate::acp_client::{AcpClient, CancelSender, InitializeResult};
 use crate::error::{AppError, AppResult};
 use crate::session_store::{self, ReplayMessage, SessionMeta};
 use crate::workspace_scanner::{self, WorkspaceManifest};
+use crate::workspace_watcher;
 
 pub type AcpState = Arc<Mutex<Option<AcpClient>>>;
+/// Separate state for cancel so it never blocks on an in-flight session/prompt.
+pub type CancelState = Arc<Mutex<Option<CancelSender>>>;
 
 pub fn acp_state() -> AcpState {
+    Arc::new(Mutex::new(None))
+}
+
+pub fn cancel_state() -> CancelState {
     Arc::new(Mutex::new(None))
 }
 
@@ -20,6 +27,7 @@ pub fn acp_state() -> AcpState {
 pub async fn acp_connect(
     app: AppHandle,
     state: State<'_, AcpState>,
+    cancel: State<'_, CancelState>,
 ) -> AppResult<InitializeResult> {
     let mut guard = state.lock().await;
     if guard.is_some() {
@@ -27,15 +35,20 @@ pub async fn acp_connect(
             message: "already connected".into(),
         });
     }
-    let (client, init) = AcpClient::spawn(app).await?;
+    let (client, cancel_sender, init) = AcpClient::spawn(app).await?;
     *guard = Some(client);
+    *cancel.lock().await = Some(cancel_sender);
     Ok(init)
 }
 
 #[tauri::command]
-pub async fn acp_disconnect(state: State<'_, AcpState>) -> AppResult<()> {
+pub async fn acp_disconnect(
+    state: State<'_, AcpState>,
+    cancel: State<'_, CancelState>,
+) -> AppResult<()> {
     let mut guard = state.lock().await;
     *guard = None; // Drop triggers `kill_on_drop(true)`.
+    *cancel.lock().await = None;
     Ok(())
 }
 
@@ -71,7 +84,7 @@ pub async fn session_prompt(
     })?;
     // Real protocol field is `prompt`, not `content` (DESIGN.md had it wrong).
     client
-        .request(
+        .request_no_timeout(
             "session/prompt",
             serde_json::json!({ "sessionId": session_id, "prompt": prompt }),
         )
@@ -79,15 +92,12 @@ pub async fn session_prompt(
 }
 
 #[tauri::command]
-pub async fn session_cancel(state: State<'_, AcpState>, session_id: String) -> AppResult<()> {
-    let mut guard = state.lock().await;
-    let client = guard.as_mut().ok_or(AppError::SessionError {
+pub async fn session_cancel(cancel: State<'_, CancelState>, session_id: String) -> AppResult<()> {
+    let guard = cancel.lock().await;
+    let sender = guard.as_ref().ok_or(AppError::SessionError {
         message: "acp not connected".into(),
     })?;
-    // session/cancel is a notification (no response awaited).
-    client
-        .notify("session/cancel", serde_json::json!({ "sessionId": session_id }))
-        .await
+    sender.send_cancel(&session_id).await
 }
 
 /// Switch the active session's model. Real ACP param key is `modelId`,
@@ -190,6 +200,27 @@ pub async fn load_session(
     })
 }
 
+/// Start watching `<path>/.kiro/` for changes. Emits `workspace-manifest-updated`
+/// whenever files are added/modified/removed inside `.kiro/`.
+#[tauri::command]
+pub async fn watch_workspace(app: AppHandle, path: String) -> AppResult<()> {
+    let root = std::path::PathBuf::from(&path);
+    if !root.is_dir() {
+        return Err(AppError::WorkspaceError {
+            message: format!("not a directory: {path}"),
+        });
+    }
+    workspace_watcher::start(app, root);
+    Ok(())
+}
+
+/// Stop the active workspace watcher.
+#[tauri::command]
+pub async fn unwatch_workspace() -> AppResult<()> {
+    workspace_watcher::stop();
+    Ok(())
+}
+
 /// Read an arbitrary file as raw bytes. Used by image upload (InputBar)
 /// where the path comes from Tauri's native file dialog — the user has
 /// already granted consent by picking the file, so we don't gate on
@@ -211,6 +242,18 @@ pub async fn read_file_bytes(path: String) -> AppResult<Vec<u8>> {
     tokio::fs::read(&path).await.map_err(|e| AppError::Unknown {
         message: format!("read {path}: {e}"),
     })
+}
+
+/// Delete a session's `.json` and `.jsonl` files from `~/.kiro/sessions/cli/`.
+/// Locked sessions are excluded by `list_sessions`, so this should never be
+/// called for a live session. Runs on the blocking pool.
+#[tauri::command]
+pub async fn delete_session(session_id: String) -> AppResult<()> {
+    tokio::task::spawn_blocking(move || session_store::delete_session(&session_id))
+        .await
+        .map_err(|e| AppError::Unknown {
+            message: format!("spawn_blocking: {e}"),
+        })?
 }
 
 /// Scan `<workspace>/.kiro/` for skills / mcp / steering configs.

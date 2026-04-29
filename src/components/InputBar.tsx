@@ -63,9 +63,9 @@ function blobToBase64(blob: Blob): Promise<{ base64: string; dataUrl: string }> 
   });
 }
 
-function PaperclipIcon({ className = "" }: { className?: string }) {
+function PaperclipIcon({ className = "w-4 h-4" }: { className?: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className={className}>
+    <svg viewBox="0 0 16 16" fill="none" className={className}>
       <path
         d="M10.5 5L6.4 9.1a2 2 0 1 0 2.8 2.8l5-5a4 4 0 1 0-5.6-5.6L3 7a6 6 0 0 0 8.5 8.5L14 13"
         stroke="currentColor"
@@ -82,6 +82,11 @@ export function InputBar() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attaching, setAttaching] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  // Tracks when composition last ended (ms). During composition this is Infinity.
+  // Blocks the confirming Enter for 50 ms after compositionend — needed because
+  // on macOS WKWebView compositionend fires before keydown, so setTimeout(0)
+  // is too short and isComposing is already false by the time keydown arrives.
+  const compositionEndedAt = useRef(0);
   const isStreaming = useApp((s) => s.isStreaming);
   const sessionId = useApp((s) => s.sessionId);
   const addUserMessage = useApp((s) => s.addUserMessage);
@@ -206,78 +211,97 @@ export function InputBar() {
   }
 
   return (
-    <div className="border-t border-border bg-bg-elevated px-4 py-3">
-      {attachments.length > 0 && (
-        <div className="mx-auto max-w-3xl flex flex-wrap gap-2 mb-2">
-          {attachments.map((a) => (
-            <div
-              key={a.id}
-              className="relative w-12 h-12 rounded-md border border-border overflow-hidden bg-bg-muted group"
-              title={a.name}
-            >
-              <img
-                src={a.previewDataUrl}
-                alt={a.name}
-                className="w-full h-full object-cover"
-              />
-              <button
-                onClick={() => removeAttachment(a.id)}
-                className="absolute top-0 right-0 w-4 h-4 flex items-center justify-center bg-black/70 text-white text-[10px] rounded-bl opacity-0 group-hover:opacity-100 transition-opacity"
-                aria-label={`Remove ${a.name}`}
+    <div className="border-t border-border/50 bg-bg-elevated/95 px-4 py-3">
+      <div className="mx-auto max-w-3xl">
+        {/* Attachment previews */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2.5 px-1">
+            {attachments.map((a) => (
+              <div
+                key={a.id}
+                className="relative w-11 h-11 rounded-lg border border-border/70 overflow-hidden bg-bg-muted group shadow-sm"
+                title={a.name}
               >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mx-auto max-w-3xl flex items-end gap-2">
-        <button
-          onClick={pickFiles}
-          disabled={!sessionId || attaching}
-          title="Attach image"
-          className="h-[38px] w-[38px] flex items-center justify-center rounded-lg border border-border bg-bg text-fg-muted hover:text-fg hover:border-accent/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          <PaperclipIcon />
-        </button>
-        <textarea
-          ref={taRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onPaste={handlePaste}
-          onKeyDown={(e) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              submit();
-            } else if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              submit();
-            }
-          }}
-          placeholder={sessionId ? "Ask Kiro…" : "Open a folder to start"}
-          rows={2}
-          disabled={!sessionId}
-          className="flex-1 resize-none rounded-lg border border-border bg-bg px-3 py-2 text-sm text-fg placeholder:text-fg-subtle focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-        />
-        {isStreaming ? (
-          <button
-            onClick={stop}
-            className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors"
-          >
-            Stop
-          </button>
-        ) : (
-          <button
-            onClick={submit}
-            disabled={!canSend()}
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Send
-          </button>
+                <img src={a.previewDataUrl} alt={a.name} className="w-full h-full object-cover" />
+                <button
+                  onClick={() => removeAttachment(a.id)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label={`Remove ${a.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
-      <div className="mx-auto max-w-3xl text-xs text-fg-subtle mt-1">
-        Enter to send · Shift+Enter for newline · 📎 or paste images
+
+        {/* Main input container — unified pill */}
+        <div className={`flex items-end gap-0 rounded-2xl border transition-colors duration-150 bg-bg ${
+          sessionId ? "border-border/70 focus-within:border-accent/50 focus-within:shadow-[0_0_0_3px_hsl(var(--accent)/0.08)]" : "border-border/40 opacity-60"
+        }`}>
+          {/* Attach button — sits left, vertically centered */}
+          <button
+            onClick={pickFiles}
+            disabled={!sessionId || attaching}
+            title="Attach image"
+            className="self-center flex-shrink-0 ml-2 w-7 h-7 flex items-center justify-center rounded-full text-fg-subtle/60 hover:text-fg-muted hover:bg-bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+          >
+            <PaperclipIcon className="w-4 h-4" />
+          </button>
+
+          {/* Textarea */}
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onPaste={handlePaste}
+            onCompositionStart={() => { compositionEndedAt.current = Infinity; }}
+            onCompositionEnd={() => { compositionEndedAt.current = Date.now(); }}
+            onKeyDown={(e) => {
+              if (Date.now() - compositionEndedAt.current < 50) return;
+              if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                e.preventDefault();
+                submit();
+              } else if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                submit();
+              }
+            }}
+            placeholder={sessionId ? "Ask Kiro…" : "Open a folder to start"}
+            rows={2}
+            disabled={!sessionId}
+            className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle/50 focus:outline-none leading-relaxed"
+          />
+
+          {/* Send / Stop — sits right, vertically centered */}
+          <div className="self-center flex-shrink-0 mr-2">
+            {isStreaming ? (
+              <button
+                onClick={stop}
+                title="Stop generation"
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-status-error/15 text-status-error hover:bg-status-error/25 transition-colors duration-150"
+              >
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                  <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                onClick={submit}
+                disabled={!canSend()}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-accent text-accent-foreground hover:bg-accent-strong disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3v10M3 8l5-5 5 5" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="text-[11px] text-fg-subtle/50 mt-1.5 px-1 select-none">
+          Enter to send · Shift+Enter for newline · paste or attach images
+        </div>
       </div>
     </div>
   );

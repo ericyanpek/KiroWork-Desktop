@@ -54,6 +54,8 @@ export function CodeBlock({
   return (
     <div
       className="not-prose shiki-wrap [&>pre]:rounded-md [&>pre]:border [&>pre]:border-border [&>pre]:p-3 [&>pre]:overflow-x-auto [&>pre]:text-xs"
+      // Safe: html is produced exclusively by Shiki's codeToHtml(), which
+      // generates static syntax-highlighted markup with no user content interpolated.
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

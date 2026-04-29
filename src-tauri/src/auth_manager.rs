@@ -6,7 +6,7 @@ use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use crate::acp_client::AcpClient;
-use crate::commands::AcpState;
+use crate::commands::{AcpState, CancelState};
 use crate::error::{AppError, AppResult};
 use crate::kiro_discovery;
 
@@ -22,7 +22,7 @@ pub enum AuthStatus {
 }
 
 #[tauri::command]
-pub async fn check_auth(app: AppHandle, state: State<'_, AcpState>) -> AppResult<AuthStatus> {
+pub async fn check_auth(app: AppHandle, state: State<'_, AcpState>, cancel: State<'_, CancelState>) -> AppResult<AuthStatus> {
     // 1. Discovery — error here is "kiro-cli not installed" (surfaced as a
     //    dedicated `not_installed` status rather than a hard error so the
     //    frontend can render the install guide).
@@ -39,8 +39,9 @@ pub async fn check_auth(app: AppHandle, state: State<'_, AcpState>) -> AppResult
         return Ok(AuthStatus::Ok { user: None });
     }
     match AcpClient::spawn(app).await {
-        Ok((client, _init)) => {
+        Ok((client, cancel_sender, _init)) => {
             *guard = Some(client);
+            *cancel.lock().await = Some(cancel_sender);
             Ok(AuthStatus::Ok { user: None })
         }
         Err(AppError::AuthRequired { message }) => Ok(AuthStatus::Required { message }),

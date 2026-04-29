@@ -10,19 +10,20 @@ function basename(p: string): string {
 }
 
 function statusDot(status: string) {
-  const color =
+  const cls =
     status === "completed"
-      ? "hsl(149 65% 52%)"
+      ? "status-dot-success"
       : status === "failed"
-        ? "hsl(353 94% 62%)"
-        : "hsl(50 86% 57%)";
-  const glow = status === "completed" || status === "failed"
-    ? undefined
-    : "0 0 8px hsl(50 86% 57% / 0.6)";
+        ? "status-dot-error"
+        : "status-dot-warning";
+  const glow =
+    status !== "completed" && status !== "failed"
+      ? "0 0 7px hsl(var(--status-warning) / 0.55)"
+      : undefined;
   return (
     <span
-      className="inline-block w-2 h-2 rounded-full"
-      style={{ backgroundColor: color, boxShadow: glow }}
+      className={`inline-block w-2 h-2 rounded-full ${cls}`}
+      style={glow ? { boxShadow: glow } : undefined}
     />
   );
 }
@@ -67,9 +68,7 @@ function DiffBlock({ chunk, initiallyExpanded }: { chunk: DiffChunk; initiallyEx
         <span className="font-mono text-fg-muted truncate" title={chunk.path}>
           {basename(chunk.path)}
         </span>
-        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400">
-          diff
-        </span>
+        <span className="badge badge-info">diff</span>
       </div>
       <pre className="text-[11px] leading-5 font-mono overflow-x-auto p-0 m-0">
         {visible.map((l, i) => (
@@ -77,9 +76,9 @@ function DiffBlock({ chunk, initiallyExpanded }: { chunk: DiffChunk; initiallyEx
             key={i}
             className={
               l.kind === "add"
-                ? "bg-green-500/10 text-green-400 pl-3 pr-2"
+                ? "bg-status-success/10 text-status-success pl-3 pr-2"
                 : l.kind === "del"
-                  ? "bg-red-500/10 text-red-400 pl-3 pr-2"
+                  ? "bg-status-error/10 text-status-error pl-3 pr-2"
                   : "text-fg-subtle pl-3 pr-2"
             }
           >

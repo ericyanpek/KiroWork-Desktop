@@ -49,6 +49,12 @@ export default {
           strong: "hsl(var(--accent-strong))",
           foreground: "hsl(var(--accent-fg))",
         },
+        status: {
+          success: "hsl(var(--status-success))",
+          warning: "hsl(var(--status-warning))",
+          error:   "hsl(var(--status-error))",
+          info:    "hsl(var(--status-info))",
+        },
       },
       fontFamily: {
         mono: [

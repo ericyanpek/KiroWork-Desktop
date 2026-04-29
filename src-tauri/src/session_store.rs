@@ -118,6 +118,22 @@ fn parse_meta(path: &Path) -> AppResult<Option<SessionMeta>> {
     }))
 }
 
+/// Delete a session's `.json` and `.jsonl` files. `.lock` is intentionally
+/// not touched — if a lock file exists, `list_sessions` already excluded the
+/// session so callers should never reach here for a live session.
+pub fn delete_session(session_id: &str) -> AppResult<()> {
+    let dir = sessions_dir()?;
+    for ext in &["json", "jsonl"] {
+        let path = dir.join(format!("{session_id}.{ext}"));
+        if path.exists() {
+            std::fs::remove_file(&path).map_err(|e| AppError::Unknown {
+                message: format!("delete {}: {e}", path.display()),
+            })?;
+        }
+    }
+    Ok(())
+}
+
 /// Read and map a session's jsonl. Lines that fail to parse are logged and
 /// skipped. kind values we don't recognise also skip — preserve forward
 /// compatibility if kiro adds new message kinds.

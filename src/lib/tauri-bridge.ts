@@ -53,6 +53,10 @@ export function listPersistedSessions(): Promise<SessionMeta[]> {
   return invoke<SessionMeta[]>("list_persisted_sessions");
 }
 
+export function deleteSession(sessionId: string): Promise<void> {
+  return invoke<void>("delete_session", { sessionId });
+}
+
 export function loadSession(
   sessionId: string,
   cwd: string,
@@ -62,6 +66,22 @@ export function loadSession(
 
 export function scanWorkspace(path: string): Promise<WorkspaceManifest> {
   return invoke<WorkspaceManifest>("scan_workspace", { path });
+}
+
+export function watchWorkspace(path: string): Promise<void> {
+  return invoke<void>("watch_workspace", { path });
+}
+
+export function unwatchWorkspace(): Promise<void> {
+  return invoke<void>("unwatch_workspace");
+}
+
+export function onWorkspaceManifestUpdated(
+  cb: (manifest: WorkspaceManifest) => void,
+): Promise<UnlistenFn> {
+  return listen<WorkspaceManifest>("workspace-manifest-updated", (e) =>
+    cb(e.payload),
+  );
 }
 
 /** Read an arbitrary file as bytes. Returns a raw Uint8Array (Tauri

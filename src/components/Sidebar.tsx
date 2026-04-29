@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { deleteSession } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 import {
   useLoadPersistedSessions,
@@ -33,24 +34,13 @@ function relativeTime(iso: string): string {
   return new Date(t).toLocaleDateString();
 }
 
-function inclusionBadge(inclusion: string): {
-  label: string;
-  className: string;
-} {
+function inclusionBadge(inclusion: string): { label: string; cls: string } {
   switch (inclusion) {
-    case "always":
-      return { label: "always", className: "bg-accent/20 text-accent-strong" };
-    case "fileMatch":
-      return {
-        label: "file",
-        className: "bg-blue-500/15 text-blue-400",
-      };
-    case "auto":
-      return { label: "auto", className: "bg-green-500/15 text-green-400" };
-    case "manual":
-      return { label: "manual", className: "bg-bg-muted text-fg-subtle" };
-    default:
-      return { label: inclusion, className: "bg-bg-muted text-fg-subtle" };
+    case "always":    return { label: "always",    cls: "badge badge-accent" };
+    case "fileMatch": return { label: "file",      cls: "badge badge-info" };
+    case "auto":      return { label: "auto",      cls: "badge badge-success" };
+    case "manual":    return { label: "manual",    cls: "badge badge-default" };
+    default:          return { label: inclusion,   cls: "badge badge-default" };
   }
 }
 
@@ -59,37 +49,49 @@ function SessionRow({
   active,
   onPick,
   loading,
+  onDelete,
 }: {
   session: SessionMeta;
   active: boolean;
   loading: boolean;
   onPick: () => void;
+  onDelete: () => void;
 }) {
   return (
-    <li>
+    <li className="group relative">
       <button
         onClick={onPick}
         disabled={loading}
-        className={`w-full text-left px-3 py-2 border-l-2 transition-colors ${
+        className={`w-full text-left px-3 py-2.5 border-l-2 transition-colors duration-150 pr-8 ${
           active
             ? "border-accent bg-accent/10"
-            : "border-transparent hover:bg-bg-muted/60"
+            : "border-transparent hover:bg-bg-muted/50"
         }`}
       >
-        <div className="text-xs font-medium text-fg truncate">
+        <div className={`text-[13px] font-medium truncate leading-snug ${active ? "text-fg" : "text-fg-muted"}`}>
           {session.title || "(untitled)"}
         </div>
-        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-fg-subtle">
-          <span>{relativeTime(session.updatedAt)}</span>
+        <div className="flex items-center gap-1.5 mt-1 text-[11px] text-fg-subtle">
+          <span className="tabular-nums">{relativeTime(session.updatedAt)}</span>
           {session.cwd && (
             <>
-              <span>·</span>
-              <span className="truncate" title={session.cwd}>
+              <span className="opacity-40">·</span>
+              <span className="truncate font-mono text-[10px]" title={session.cwd}>
                 {basename(session.cwd)}
               </span>
             </>
           )}
         </div>
+      </button>
+      <button
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        title="Delete session"
+        aria-label="Delete session"
+        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 p-1 rounded text-fg-subtle hover:text-status-error hover:bg-status-error/10"
+      >
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 4h12M5 4V2h6v2M6 7v5M10 7v5M3 4l1 9a1 1 0 001 1h6a1 1 0 001-1l1-9" />
+        </svg>
       </button>
     </li>
   );
@@ -136,11 +138,7 @@ function SteeringRow({ entry }: { entry: SteeringEntry }) {
         <span className="text-xs font-medium text-fg truncate">
           {entry.name}
         </span>
-        <span
-          className={`text-[9px] uppercase tracking-wide px-1.5 py-0.5 rounded ${badge.className}`}
-        >
-          {badge.label}
-        </span>
+        <span className={badge.cls}>{badge.label}</span>
       </div>
       {entry.fileMatchPattern && (
         <div className="text-[10px] text-fg-subtle font-mono mt-0.5 truncate">
@@ -154,10 +152,10 @@ function SteeringRow({ entry }: { entry: SteeringEntry }) {
 export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const sessions = useApp((s) => s.persistedSessions);
   const currentSessionId = useApp((s) => s.sessionId);
+  const removePersistedSession = useApp((s) => s.removePersistedSession);
   const manifest = useApp((s) => s.workspaceManifest);
   const loadList = useLoadPersistedSessions();
   const restore = useRestoreSession();
-  // Scan hook is mounted for its workspacePath effect; no manual refresh needed.
   useWorkspaceScan();
   const [loading, setLoading] = useState<string | null>(null);
 
@@ -168,6 +166,15 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   useEffect(() => {
     if (currentSessionId) loadList();
   }, [currentSessionId, loadList]);
+
+  async function handleDelete(meta: SessionMeta) {
+    try {
+      await deleteSession(meta.sessionId);
+      removePersistedSession(meta.sessionId);
+    } catch {
+      /* silently ignore — file may already be gone */
+    }
+  }
 
   async function handlePick(meta: SessionMeta) {
     if (meta.sessionId === currentSessionId) return;
@@ -219,6 +226,7 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
                   active={s.sessionId === currentSessionId}
                   loading={loading === s.sessionId}
                   onPick={() => handlePick(s)}
+                  onDelete={() => handleDelete(s)}
                 />
               ))}
             </ul>

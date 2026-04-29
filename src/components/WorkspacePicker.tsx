@@ -2,7 +2,7 @@ import { useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useOpenWorkspace } from "../hooks/useOpenWorkspace";
 import type { AppError } from "../types/acp";
-import { KiroMark, KiroMascot } from "./KiroMark";
+import { KiroMascot } from "./KiroMark";
 
 export function WorkspacePicker() {
   const openWorkspace = useOpenWorkspace();
@@ -28,31 +28,25 @@ export function WorkspacePicker() {
 
   return (
     <main className="flex h-full items-center justify-center px-6 kiro-ambient">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-bg-elevated/80 backdrop-blur p-8 shadow-2xl shadow-black/40 space-y-6 text-center">
-        <div className="flex justify-center">
-          <KiroMascot size={128} />
+      <div className="w-full max-w-sm rounded-3xl border border-border/60 bg-bg-elevated/85 backdrop-blur-md p-8 shadow-2xl shadow-black/20 flex flex-col items-center gap-5 text-center">
+        <KiroMascot size={96} />
+        <div>
+          <h1 className="text-xl font-semibold text-fg tracking-tight">Let's build</h1>
+          <p className="text-sm text-fg-muted mt-1.5 leading-relaxed">
+            Pick a workspace folder to get started.
+          </p>
         </div>
-        <div className="flex justify-center">
-          <KiroMark size="md" />
-        </div>
-        <h1 className="text-2xl font-semibold text-fg tracking-tight">
-          Let's build
-        </h1>
-        <p className="text-sm text-fg-muted">
-          Pick a workspace folder. Kiro will run in that directory with full
-          access to its files.
-        </p>
         <button
           onClick={pick}
           disabled={busy}
-          className="w-full rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-accent-foreground hover:bg-accent-strong hover:text-bg disabled:opacity-50 transition-colors"
+          className="w-full rounded-2xl bg-accent px-5 py-3 text-sm font-semibold text-accent-foreground hover:bg-accent-strong disabled:opacity-50 transition-colors duration-150 shadow-md shadow-accent/20"
         >
           {busy ? "Opening…" : "Choose folder…"}
         </button>
-        <p className="text-xs text-fg-subtle">
-          …or drag a folder anywhere on this window.
+        <p className="text-[11px] text-fg-subtle/60 select-none">
+          or drag a folder onto this window
         </p>
-        {err && <p className="text-sm text-red-400">{err}</p>}
+        {err && <p className="text-sm text-status-error">{err}</p>}
       </div>
     </main>
   );

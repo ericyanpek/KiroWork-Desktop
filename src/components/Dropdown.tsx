@@ -10,11 +10,13 @@ export function Dropdown({
   children,
   align = "left",
   className = "",
+  triggerClassName,
 }: {
   label: ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "left" | "right";
   className?: string;
+  triggerClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -40,16 +42,19 @@ export function Dropdown({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-1 rounded-md border border-border bg-bg px-2.5 py-1 text-xs font-medium text-fg-muted hover:text-fg hover:border-accent/50 transition-colors"
+        className={triggerClassName ?? "inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-bg-muted/40 px-3 py-1 text-xs font-medium text-fg-muted hover:text-fg hover:border-accent/40 hover:bg-bg-muted/70 transition-colors duration-150"}
       >
         {label}
-        <svg width="10" height="10" viewBox="0 0 10 10" className="opacity-60">
+        <svg
+          width="9" height="9" viewBox="0 0 10 10"
+          className={`opacity-50 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        >
           <path d="M2 4 L5 7 L8 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
       {open && (
         <div
-          className={`absolute z-20 mt-1 min-w-[220px] max-h-[70vh] overflow-y-auto rounded-lg border border-border bg-bg-elevated shadow-xl shadow-black/30 py-1 ${
+          className={`absolute z-20 mt-1.5 min-w-[220px] max-h-[70vh] overflow-y-auto rounded-xl border border-border/80 bg-bg-elevated shadow-xl shadow-black/20 py-1.5 ${
             align === "right" ? "right-0" : "left-0"
           }`}
         >
@@ -73,10 +78,10 @@ export function DropdownItem({
     <button
       type="button"
       onClick={onClick}
-      className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+      className={`w-full text-left px-3 py-2 text-xs transition-colors duration-100 ${
         active
-          ? "bg-accent/15 text-accent-strong"
-          : "text-fg-muted hover:bg-bg-muted hover:text-fg"
+          ? "bg-accent/12 text-accent-strong font-medium"
+          : "text-fg-muted hover:bg-bg-muted/80 hover:text-fg"
       }`}
     >
       {children}

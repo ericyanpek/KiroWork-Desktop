@@ -18,22 +18,21 @@ export function CollapsibleSection({
     <section className="border-b border-border/60">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-fg-subtle hover:text-fg transition-colors"
+        className="w-full flex items-center gap-1.5 px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-fg-subtle hover:text-fg hover:bg-bg-muted/50 transition-colors duration-150"
       >
-        <span className="flex items-center gap-1.5">
-          <svg
-            width="8"
-            height="8"
-            viewBox="0 0 8 8"
-            className={`transition-transform ${open ? "rotate-90" : ""}`}
-          >
-            <path d="M2 1 L6 4 L2 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          {title}
-          {typeof count === "number" && (
-            <span className="text-[10px] text-fg-subtle font-normal">({count})</span>
-          )}
-        </span>
+        <svg
+          width="8"
+          height="8"
+          viewBox="0 0 8 8"
+          className="flex-shrink-0 transition-transform duration-200"
+          style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
+        >
+          <path d="M2 1 L6 4 L2 7" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="flex-1">{title}</span>
+        {typeof count === "number" && count > 0 && (
+          <span className="badge badge-default ml-auto">{count}</span>
+        )}
       </button>
       {open && <div className="pb-1">{children}</div>}
     </section>
