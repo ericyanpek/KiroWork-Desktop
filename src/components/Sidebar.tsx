@@ -7,7 +7,6 @@ import {
 } from "../hooks/useRestoreSession";
 import { useWorkspaceScan } from "../hooks/useWorkspaceScan";
 import { CollapsibleSection } from "./CollapsibleSection";
-import { KiroMark } from "./KiroMark";
 import type {
   McpServerEntry,
   SessionMeta,
@@ -201,9 +200,8 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
     : sessions;
 
   return (
-    <aside className="w-[260px] flex-shrink-0 border-r border-border bg-bg-muted/40 flex flex-col min-h-0">
-      <div className="px-3 py-3 border-b border-border flex items-center justify-between">
-        <KiroMark size="sm" />
+    <aside className="w-[260px] flex-shrink-0 flex flex-col min-h-0 mt-[6px] mx-2 mb-2 rounded-xl bg-bg-muted shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.12),0_0_0_1px_hsl(var(--border)/0.6)] overflow-hidden">
+      <div data-tauri-drag-region className="pl-[80px] pr-3 h-[32px] border-b border-border/50 flex items-center justify-end">
         <button
           onClick={onCollapse}
           title="Collapse sidebar"

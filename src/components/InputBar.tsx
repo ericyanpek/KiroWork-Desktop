@@ -76,11 +76,22 @@ function PlusIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
-export function InputBar() {
+export function InputBar({ initialText, onInitialTextConsumed }: {
+  initialText?: string | null;
+  onInitialTextConsumed?: () => void;
+} = {}) {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attaching, setAttaching] = useState(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (initialText) {
+      setText(initialText);
+      taRef.current?.focus();
+      onInitialTextConsumed?.();
+    }
+  }, [initialText, onInitialTextConsumed]);
   // Tracks when composition last ended (ms). During composition this is Infinity.
   // Blocks the confirming Enter for 50 ms after compositionend — needed because
   // on macOS WKWebView compositionend fires before keydown, so setTimeout(0)
@@ -94,7 +105,7 @@ export function InputBar() {
   const setError = useApp((s) => s.setError);
 
   useEffect(() => {
-    taRef.current?.focus();
+    if (!initialText) taRef.current?.focus();
   }, []);
 
   function canSend(): boolean {

@@ -3,7 +3,7 @@
 > **Kiro AI 的 macOS 原生客户端** — 将 `kiro-cli` 的全部 Agent 能力封装进一个零终端操作的对话界面。基于 Tauri 2 IPC 桥接 Kiro ACP 协议，前端 React 19 + TypeScript，后端 Rust 异步运行时。
 
 ![platform](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
-![version](https://img.shields.io/badge/version-0.3.0-blueviolet)
+![version](https://img.shields.io/badge/version-0.3.1-blueviolet)
 ![stack](https://img.shields.io/badge/stack-Tauri%202%20%2B%20React%2019%20%2B%20Rust-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
@@ -29,11 +29,11 @@
 
 **① 开启一个项目**
 
-<video src="https://github.com/user-attachments/assets/d2ce553a-621f-429a-a139-c73e229f5081" controls width="100%" style="border-radius:12px"></video>
+<video src="https://github.com/user-attachments/assets/6d2c2003-b3d9-4835-aaa8-6289861ff3ff" controls width="100%" style="border-radius:12px"></video>
 
-**② 通过自然语言安装 MCP**
+**② 通过自然语言安装 MCP 和 Skills**
 
-<video src="https://github.com/user-attachments/assets/2a19b9c4-a684-4cb5-b20d-3c69b41928af" controls width="100%" style="border-radius:12px"></video>
+<video src="https://github.com/user-attachments/assets/73716c1b-78a6-4d37-9e05-74129d0f2b20" controls width="100%" style="border-radius:12px"></video>
 
 ---
 

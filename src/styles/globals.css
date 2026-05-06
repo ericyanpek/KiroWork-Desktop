@@ -68,6 +68,7 @@ body {
   transition: background-color 180ms ease, color 180ms ease;
 }
 
+
 /* Thin, unobtrusive scrollbar that matches the theme. */
 *::-webkit-scrollbar {
   width: 6px;

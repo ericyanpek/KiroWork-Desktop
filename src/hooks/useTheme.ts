@@ -1,32 +1,48 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
-export type Theme = "light" | "dark";
+export type ThemeMode = "light" | "dark" | "system";
+
+const STORAGE_KEY = "kirowork.theme";
+
+function applyTheme(mode: ThemeMode) {
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const dark = mode === "dark" || (mode === "system" && prefersDark);
+  document.documentElement.classList.toggle("dark", dark);
+}
+
+function readStoredMode(): ThemeMode {
+  if (typeof window === "undefined") return "system";
+  const v = window.localStorage.getItem(STORAGE_KEY);
+  if (v === "light" || v === "dark" || v === "system") return v;
+  return "system";
+}
 
 /**
- * Follow the system color scheme (macOS appearance setting) and reflect it
- * by toggling the `.dark` class on <html>. Tailwind's `darkMode: "class"`
- * reads from that. Updates live when the user flips Appearance in
- * System Settings.
+ * Three-way theme control: light / dark / system.
+ * Persists to localStorage and listens to system changes when in "system" mode.
  */
-export function useSystemTheme(): Theme {
-  const [theme, setTheme] = useState<Theme>(() =>
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light",
-  );
+export function useThemeMode(): [ThemeMode, (m: ThemeMode) => void] {
+  const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
 
-  useEffect(() => {
-    const mql = window.matchMedia("(prefers-color-scheme: dark)");
-    const apply = (dark: boolean) => {
-      document.documentElement.classList.toggle("dark", dark);
-      setTheme(dark ? "dark" : "light");
-    };
-    apply(mql.matches);
-    const listener = (e: MediaQueryListEvent) => apply(e.matches);
-    mql.addEventListener("change", listener);
-    return () => mql.removeEventListener("change", listener);
+  const setMode = useCallback((next: ThemeMode) => {
+    setModeState(next);
+    window.localStorage.setItem(STORAGE_KEY, next);
+    applyTheme(next);
   }, []);
 
-  return theme;
+  // Apply on mount + listen for system changes when mode === "system"
+  useEffect(() => {
+    applyTheme(mode);
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = () => { if (mode === "system") applyTheme("system"); };
+    mql.addEventListener("change", listener);
+    return () => mql.removeEventListener("change", listener);
+  }, [mode]);
+
+  return [mode, setMode];
+}
+
+/** Legacy hook kept for App.tsx — now delegates to useThemeMode. */
+export function useSystemTheme() {
+  useThemeMode();
 }

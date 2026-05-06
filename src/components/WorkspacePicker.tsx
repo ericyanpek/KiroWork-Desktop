@@ -27,7 +27,8 @@ export function WorkspacePicker() {
   }
 
   return (
-    <main className="flex h-full items-center justify-center px-6 kiro-ambient">
+    <main data-tauri-drag-region className="flex h-full flex-col items-center justify-center px-6 kiro-ambient">
+      <div className="flex flex-1 items-center justify-center w-full">
       <div className="w-full max-w-sm rounded-3xl border border-border/60 bg-bg-elevated/85 backdrop-blur-md p-8 shadow-2xl shadow-black/20 flex flex-col items-center gap-5 text-center">
         <KiroMascot size={96} />
         <div>
@@ -47,6 +48,7 @@ export function WorkspacePicker() {
           or drag a folder onto this window
         </p>
         {err && <p className="text-sm text-status-error">{err}</p>}
+      </div>
       </div>
     </main>
   );

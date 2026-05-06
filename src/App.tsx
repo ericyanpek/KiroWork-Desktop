@@ -26,15 +26,34 @@ function MainUI() {
   }
 
   return (
-    <main className="flex h-full">
-      {sidebarVisible && <Sidebar onCollapse={() => setSidebarVisible(false)} />}
-      <div className="flex-1 flex flex-col min-w-0">
-        <Toolbar
-          sidebarCollapsed={!sidebarVisible}
-          onExpandSidebar={() => setSidebarVisible(true)}
-        />
-        <div className="flex-1 min-h-0">
-          <ChatPanel />
+    <main className="flex h-full flex-col kiro-ambient">
+      <div className="flex flex-1 min-h-0 relative">
+        {sidebarVisible && <Sidebar onCollapse={() => setSidebarVisible(false)} />}
+        {/* Sidebar expand button — fixed position so toolbar is unaffected */}
+        {!sidebarVisible && (
+          <button
+            onClick={() => setSidebarVisible(true)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+            className="absolute left-[84px] top-[8px] z-20 btn-icon w-7 h-7 text-fg-subtle hover:text-fg hover:bg-bg-muted/70 pointer-events-auto"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+              <path d="M6 3v10" />
+              <path d="M8.5 6L10.5 8L8.5 10" />
+            </svg>
+          </button>
+        )}
+        <div className="relative flex-1 min-w-0">
+          <div className="absolute inset-0">
+            <ChatPanel />
+          </div>
+          <div data-tauri-drag-region className="absolute inset-x-0 top-0 pointer-events-none z-10">
+            <Toolbar
+              sidebarCollapsed={!sidebarVisible}
+              onExpandSidebar={() => setSidebarVisible(true)}
+            />
+          </div>
         </div>
       </div>
     </main>

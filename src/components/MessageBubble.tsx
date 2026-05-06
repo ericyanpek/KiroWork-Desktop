@@ -28,8 +28,8 @@ export function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const align = isUser ? "items-end" : "items-start";
   const bubbleClass = isUser
-    ? "bg-accent/90 text-accent-foreground"
-    : "bg-bg-elevated text-fg border border-border/70 shadow-sm";
+    ? "bg-accent/90 text-accent-foreground rounded-2xl px-4 py-3"
+    : "border-l-2 border-accent/30 pl-4 pr-2 py-1";
 
   return (
     <div className={`flex flex-col ${align} gap-2`}>
@@ -41,7 +41,7 @@ export function MessageBubble({ message }: { message: Message }) {
         </div>
       )}
       <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed text-[13px] ${bubbleClass}`}
+        className={`leading-relaxed text-[13px] ${isUser ? "max-w-[65%]" : "w-full max-w-3xl"} ${bubbleClass}`}
       >
         {isUser ? (
           <span className="whitespace-pre-wrap break-words text-[13px] leading-relaxed">{message.text}</span>
