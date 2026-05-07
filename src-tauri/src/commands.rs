@@ -139,6 +139,18 @@ pub async fn set_mode(
         .await
 }
 
+/// Read the title of a single session from disk, ignoring any lock file.
+/// Used to refresh the sidebar entry for the active session after kiro-cli
+/// writes its generated title at end-of-turn.
+#[tauri::command]
+pub async fn get_session_title(session_id: String) -> AppResult<Option<String>> {
+    tokio::task::spawn_blocking(move || session_store::get_session_title(&session_id))
+        .await
+        .map_err(|e| AppError::Unknown {
+            message: format!("spawn_blocking: {e}"),
+        })?
+}
+
 /// Scan `~/.kiro/sessions/cli/` for resumable sessions. Pure disk I/O,
 /// no ACP call, no AcpState lock.
 #[tauri::command]

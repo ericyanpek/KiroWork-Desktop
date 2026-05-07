@@ -64,6 +64,9 @@ export interface AppState {
   previewFilePath: string | null;
   filePanelOpen: boolean;
 
+  // Session switching transition
+  isSwitchingSession: boolean;
+
   // actions
   setAcpStatus: (s: AcpStatus) => void;
   setAuth: (s: AuthStatus) => void;
@@ -93,6 +96,7 @@ export interface AppState {
   setPreviewFilePath: (path: string | null) => void;
   setFilePanelOpen: (open: boolean) => void;
   addFileActivityToToolCall: (toolCallId: string, path: string) => void;
+  setIsSwitchingSession: (v: boolean) => void;
 
   /** Replace messages wholesale — used by session replay. Does NOT touch
    *  isStreaming or invoke any ACP calls. */
@@ -174,6 +178,7 @@ export const useApp = create<AppState>((set) => ({
   error: null,
   previewFilePath: null,
   filePanelOpen: false,
+  isSwitchingSession: false,
 
   setAcpStatus: (s) => set({ acpStatus: s }),
   setAuth: (s) => set({ authStatus: s }),
@@ -277,6 +282,7 @@ export const useApp = create<AppState>((set) => ({
 
   setPreviewFilePath: (path) => set({ previewFilePath: path }),
   setFilePanelOpen: (open) => set({ filePanelOpen: open }),
+  setIsSwitchingSession: (v) => set({ isSwitchingSession: v }),
 
   addFileActivityToToolCall: (toolCallId, path) =>
     set((state) => {

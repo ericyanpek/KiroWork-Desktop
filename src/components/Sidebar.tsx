@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { deleteSession } from "../lib/tauri-bridge";
+import { deleteSession, getSessionTitle } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 import {
   useLoadPersistedSessions,
   useRestoreSession,
 } from "../hooks/useRestoreSession";
+import { useOpenWorkspace } from "../hooks/useOpenWorkspace";
 import { useWorkspaceScan } from "../hooks/useWorkspaceScan";
 import { CollapsibleSection } from "./CollapsibleSection";
 import type {
@@ -152,13 +153,19 @@ function SteeringRow({ entry }: { entry: SteeringEntry }) {
 export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const sessions = useApp((s) => s.persistedSessions);
   const currentSessionId = useApp((s) => s.sessionId);
+  const workspacePath = useApp((s) => s.workspacePath);
+  const isStreaming = useApp((s) => s.isStreaming);
+  const messageCount = useApp((s) => s.messages.length);
   const removePersistedSession = useApp((s) => s.removePersistedSession);
+  const setPersistedSessions = useApp((s) => s.setPersistedSessions);
   const manifest = useApp((s) => s.workspaceManifest);
   const loadList = useLoadPersistedSessions();
   const restore = useRestoreSession();
+  const openWorkspace = useOpenWorkspace();
   useWorkspaceScan();
   const [loading, setLoading] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const prevStreamingRef = useRef(false);
 
   useEffect(() => {
     loadList();
@@ -168,10 +175,62 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
     if (currentSessionId) loadList();
   }, [currentSessionId, loadList]);
 
+  // After each completed turn, refresh the active session's title directly
+  // from disk — list_sessions skips locked sessions, so loadList() would miss
+  // it. getSessionTitle() ignores the lock and reads just the title field.
+  useEffect(() => {
+    if (prevStreamingRef.current && !isStreaming && currentSessionId) {
+      getSessionTitle(currentSessionId).then((title) => {
+        if (title) {
+          setPersistedSessions([{
+            sessionId: currentSessionId,
+            title,
+            cwd: workspacePath ?? "",
+            updatedAt: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+          }]);
+        }
+      }).catch(() => { /* silently ignore */ });
+    }
+    prevStreamingRef.current = isStreaming;
+  }, [isStreaming, currentSessionId, workspacePath, setPersistedSessions]);
+
+  // The active session has a lock file so list_sessions skips it.
+  // Inject it into the list, reading the real title from disk so we don't
+  // overwrite an existing title when switching to a named session.
+  useEffect(() => {
+    if (!currentSessionId || !workspacePath) return;
+    getSessionTitle(currentSessionId)
+      .then((title) => {
+        setPersistedSessions([{
+          sessionId: currentSessionId,
+          title: title ?? "",
+          cwd: workspacePath,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }]);
+      })
+      .catch(() => {
+        // Fallback: inject with empty title if disk read fails
+        setPersistedSessions([{
+          sessionId: currentSessionId,
+          title: "",
+          cwd: workspacePath,
+          updatedAt: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        }]);
+      });
+  }, [currentSessionId, workspacePath, setPersistedSessions]);
+
   async function handleDelete(meta: SessionMeta) {
     try {
       await deleteSession(meta.sessionId);
       removePersistedSession(meta.sessionId);
+      // If the deleted session is the active one, open a fresh session in the
+      // same workspace so the chat area doesn't show stale content.
+      if (meta.sessionId === currentSessionId && workspacePath) {
+        await openWorkspace(workspacePath);
+      }
     } catch {
       /* silently ignore — file may already be gone */
     }
@@ -179,6 +238,14 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
 
   async function handlePick(meta: SessionMeta) {
     if (meta.sessionId === currentSessionId) return;
+    // If the current session has no messages, just remove it from the UI list.
+    // We intentionally do NOT call deleteSession here — the active session has
+    // a live lock file and kiro-cli still holds it open. Removing the JSON on
+    // disk while ACP is connected confuses the next session/prompt call.
+    // kiro-cli will clean up the empty session naturally when it exits.
+    if (currentSessionId && messageCount === 0) {
+      removePersistedSession(currentSessionId);
+    }
     setLoading(meta.sessionId);
     try {
       await restore(meta);

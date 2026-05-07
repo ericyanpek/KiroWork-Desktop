@@ -118,6 +118,24 @@ fn parse_meta(path: &Path) -> AppResult<Option<SessionMeta>> {
     }))
 }
 
+/// Read just the title from a session's `.json` file, ignoring any lock file.
+/// Used to refresh the sidebar title for the currently active session after
+/// kiro-cli writes it at end-of-turn.
+pub fn get_session_title(session_id: &str) -> AppResult<Option<String>> {
+    let dir = sessions_dir()?;
+    let path = dir.join(format!("{session_id}.json"));
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let text = std::fs::read_to_string(&path).map_err(|e| AppError::Unknown {
+        message: format!("read {}: {e}", path.display()),
+    })?;
+    let v: Value = serde_json::from_str(&text).map_err(|e| AppError::Unknown {
+        message: format!("parse {}: {e}", path.display()),
+    })?;
+    Ok(v.get("title").and_then(|x| x.as_str()).map(|s| s.to_string()))
+}
+
 /// Delete a session's `.json` and `.jsonl` files. `.lock` is intentionally
 /// not touched — if a lock file exists, `list_sessions` already excluded the
 /// session so callers should never reach here for a live session.

@@ -16,22 +16,24 @@ export function useOpenWorkspace() {
   const setWorkspace = useApp((s) => s.setWorkspace);
   const hydrateFromSessionResult = useApp((s) => s.hydrateFromSessionResult);
   const setError = useApp((s) => s.setError);
+  const setIsSwitchingSession = useApp((s) => s.setIsSwitchingSession);
 
   return useCallback(
     async (path: string) => {
       try {
         const res = await sessionNew(path);
-        // Reset chat state and hydrate new session atomically — no intermediate
-        // state where sessionId is null, which would flash the WorkspacePicker.
         resetSession();
-        hydrateFromSessionResult(res);
         setSession(res.sessionId);
+        hydrateFromSessionResult(res);
         setWorkspace(path);
       } catch (e) {
         setError(e as AppError);
         throw e;
+      } finally {
+        // Clear switching state in case this was called after a delete
+        setIsSwitchingSession(false);
       }
     },
-    [resetSession, setSession, setWorkspace, hydrateFromSessionResult, setError],
+    [resetSession, setSession, setWorkspace, hydrateFromSessionResult, setError, setIsSwitchingSession],
   );
 }

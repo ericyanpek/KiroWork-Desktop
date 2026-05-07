@@ -28,12 +28,14 @@ export function useRestoreSession() {
   const setWorkspace = useApp((s) => s.setWorkspace);
   const setMessages = useApp((s) => s.setMessages);
   const setError = useApp((s) => s.setError);
+  const setIsSwitchingSession = useApp((s) => s.setIsSwitchingSession);
 
   return useCallback(
     async (meta: SessionMeta) => {
-      resetSession();
+      setIsSwitchingSession(true);
       try {
         const res = await loadSession(meta.sessionId, meta.cwd);
+        resetSession();
         hydrateFromSessionResult(res.session);
         setSession(meta.sessionId);
         setWorkspace(meta.cwd);
@@ -41,6 +43,8 @@ export function useRestoreSession() {
       } catch (e) {
         setError(e as AppError);
         throw e;
+      } finally {
+        setIsSwitchingSession(false);
       }
     },
     [
@@ -50,6 +54,7 @@ export function useRestoreSession() {
       setWorkspace,
       setMessages,
       setError,
+      setIsSwitchingSession,
     ],
   );
 }

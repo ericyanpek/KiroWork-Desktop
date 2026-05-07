@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { open } from "@tauri-apps/plugin-shell";
@@ -127,7 +127,7 @@ function makeMarkdownComponents(
   };
 }
 
-export function MessageBubble({ message }: { message: Message }) {
+export const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
   const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
   const setFilePanelOpen = useApp((s) => s.setFilePanelOpen);
@@ -136,12 +136,12 @@ export function MessageBubble({ message }: { message: Message }) {
     ? "bg-accent/90 text-accent-foreground rounded-2xl px-4 py-3"
     : "border-l-2 border-accent/30 pl-4 pr-2 py-1";
 
-  function openFile(path: string) {
+  const openFile = useMemo(() => (path: string) => {
     setPreviewFilePath(path);
     setFilePanelOpen(true);
-  }
+  }, [setPreviewFilePath, setFilePanelOpen]);
 
-  const markdownComponents = makeMarkdownComponents(openFile);
+  const markdownComponents = useMemo(() => makeMarkdownComponents(openFile), [openFile]);
 
   return (
     <div className={`group/msg flex flex-col ${align} gap-1`}>
@@ -182,4 +182,4 @@ export function MessageBubble({ message }: { message: Message }) {
       )}
     </div>
   );
-}
+});

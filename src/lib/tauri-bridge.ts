@@ -54,6 +54,10 @@ export function listPersistedSessions(): Promise<SessionMeta[]> {
   return invoke<SessionMeta[]>("list_persisted_sessions");
 }
 
+export function getSessionTitle(sessionId: string): Promise<string | null> {
+  return invoke<string | null>("get_session_title", { sessionId });
+}
+
 export function deleteSession(sessionId: string): Promise<void> {
   return invoke<void>("delete_session", { sessionId });
 }

@@ -34,6 +34,7 @@ pub fn run() {
             commands::session_cancel,
             commands::set_model,
             commands::set_mode,
+            commands::get_session_title,
             commands::list_persisted_sessions,
             commands::delete_session,
             commands::load_session,

@@ -132,7 +132,18 @@ export function FilePanel() {
         }
         setLoad({ type: "ok", text: new TextDecoder("utf-8", { fatal: false }).decode(bytes) });
       })
-      .catch((e: unknown) => { if (!cancelled) setLoad({ type: "error", message: String(e) }); });
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        let msg = "Failed to read file";
+        if (typeof e === "string") msg = e;
+        else if (e && typeof e === "object") {
+          const o = e as Record<string, unknown>;
+          if (typeof o.message === "string") msg = o.message;
+          else if (typeof o.error === "string") msg = o.error;
+          else { try { msg = JSON.stringify(e); } catch { /* keep default */ } }
+        }
+        setLoad({ type: "error", message: msg });
+      });
 
     return () => {
       cancelled = true;
@@ -152,7 +163,7 @@ export function FilePanel() {
   const isImage = load.type === "image";
 
   return (
-    <aside className="w-[380px] flex-shrink-0 flex-grow-0 flex flex-col min-h-0 mt-[6px] mr-2 mb-2 rounded-xl bg-bg-muted shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.12),0_0_0_1px_hsl(var(--border)/0.6)] overflow-hidden" style={{ minWidth: "380px", maxWidth: "380px" }}>
+    <aside className="w-[380px] flex-shrink-0 flex-grow-0 flex flex-col min-h-0 mt-[44px] mr-2 mb-2 rounded-xl bg-bg-muted shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.12),0_0_0_1px_hsl(var(--border)/0.6)] overflow-hidden" style={{ minWidth: "380px", maxWidth: "380px" }}>
       {/* Header */}
       <div className="h-[32px] border-b border-border/50 flex items-center gap-2 px-3 select-none flex-shrink-0">
         {/* File type icon */}
@@ -222,8 +233,9 @@ export function FilePanel() {
           </div>
         )}
         {load.type === "error" && (
-          <div className="rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-xs text-status-error">
-            {load.message}
+          <div className="rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-xs text-status-error flex flex-col gap-1">
+            <span className="font-medium">Could not open file</span>
+            <span className="text-status-error/70 break-all">{load.message}</span>
           </div>
         )}
         {load.type === "binary" && (

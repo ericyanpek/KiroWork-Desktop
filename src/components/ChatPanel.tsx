@@ -11,15 +11,49 @@ const QUICK_STARTS = [
   { label: "Find TODOs", prompt: "Search the codebase for TODO and FIXME comments. List them with file and line number." },
 ];
 
+function SwitchingSkeleton() {
+  return (
+    <div className="mx-auto max-w-3xl flex flex-col gap-5 pt-24 px-4 animate-pulse">
+      {/* assistant bubble skeleton */}
+      <div className="flex flex-col gap-2">
+        <div className="h-3 w-3/4 rounded-full bg-fg/8" />
+        <div className="h-3 w-5/6 rounded-full bg-fg/8" />
+        <div className="h-3 w-2/3 rounded-full bg-fg/8" />
+      </div>
+      {/* user bubble skeleton */}
+      <div className="flex flex-col items-end gap-2">
+        <div className="h-3 w-1/2 rounded-full bg-fg/8" />
+        <div className="h-3 w-1/3 rounded-full bg-fg/8" />
+      </div>
+      {/* assistant bubble skeleton */}
+      <div className="flex flex-col gap-2">
+        <div className="h-3 w-4/5 rounded-full bg-fg/8" />
+        <div className="h-3 w-2/3 rounded-full bg-fg/8" />
+        <div className="h-3 w-3/4 rounded-full bg-fg/8" />
+        <div className="h-3 w-1/2 rounded-full bg-fg/8" />
+      </div>
+    </div>
+  );
+}
+
 export function ChatPanel() {
   const messages = useApp((s) => s.messages);
   const error = useApp((s) => s.error);
+  const isSwitchingSession = useApp((s) => s.isSwitchingSession);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [quickInput, setQuickInput] = useState<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  if (isSwitchingSession) {
+    return (
+      <div className="relative flex h-full flex-col overflow-hidden">
+        <SwitchingSkeleton />
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex h-full flex-col">

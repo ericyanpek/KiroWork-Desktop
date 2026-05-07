@@ -39,6 +39,25 @@ const _state = g.__kiroAcpUnsub as {
   fileActivity: Promise<() => void> | null;
 };
 
+// Module-level chunk buffer — survives React re-renders and the _state latch.
+// Flush with setTimeout(0) instead of rAF: rAF is throttled when the WKWebView
+// window is not in the foreground or has no pending paint, which would silently
+// drop chunks.
+let _pendingChunk = "";
+let _flushTimer: ReturnType<typeof setTimeout> | null = null;
+let _flushFn: ((text: string) => void) | null = null;
+
+function _scheduleFlush() {
+  if (_flushTimer !== null) return;
+  _flushTimer = setTimeout(() => {
+    _flushTimer = null;
+    if (_pendingChunk && _flushFn) {
+      _flushFn(_pendingChunk);
+      _pendingChunk = "";
+    }
+  }, 0);
+}
+
 export function useAcp() {
   const appendChunk = useApp((s) => s.appendChunk);
   const addOrUpdateToolCall = useApp((s) => s.addOrUpdateToolCall);
@@ -46,6 +65,9 @@ export function useAcp() {
   const applyMetadata = useApp((s) => s.applyMetadata);
   const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
   const addFileActivityToToolCall = useApp((s) => s.addFileActivityToToolCall);
+
+  // Keep module-level flush fn pointing at latest appendChunk.
+  useEffect(() => { _flushFn = appendChunk; }, [appendChunk]);
 
   // Latest-value ref so updates for the active session aren't dropped without
   // putting sessionId in effect deps (which would re-subscribe on every change).
@@ -69,7 +91,10 @@ export function useAcp() {
       switch (update.sessionUpdate) {
         case "agent_message_chunk": {
           const text = (update as { content: { text: string } }).content?.text ?? "";
-          if (text) appendChunk(text);
+          if (text) {
+            _pendingChunk += text;
+            _scheduleFlush();
+          }
           break;
         }
         case "tool_call": {

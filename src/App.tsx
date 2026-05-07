@@ -27,19 +27,37 @@ function MainUI() {
     return <WorkspacePicker />;
   }
 
+  // Sidebar total width: w-[260px] + mx-2 (8px each side) = 276px.
+  // Used by both the toolbar left offset and the expand button left position.
+  // Change this one constant if the sidebar width ever changes.
+  const SIDEBAR_W = 276;
+
   return (
     <main className="flex h-full flex-col kiro-ambient">
-<div className="flex flex-1 min-h-0 relative">
+      {/* Toolbar — fixed to viewport so its position never shifts regardless of
+          what is added above/below in the component tree. */}
+      <div
+        className="fixed top-0 right-0 z-10 pointer-events-none overflow-visible"
+        style={{ left: sidebarVisible ? SIDEBAR_W : 0 }}
+      >
+        <Toolbar
+          sidebarCollapsed={!sidebarVisible}
+          onExpandSidebar={() => setSidebarVisible(true)}
+        />
+      </div>
+
+      <div className="flex flex-1 min-h-0 relative">
         {sidebarVisible && <Sidebar onCollapse={() => setSidebarVisible(false)} />}
-        {/* Sidebar expand button — fixed position so toolbar is unaffected */}
+
+        {/* Sidebar expand button — fixed so it stays put even if layout changes */}
         {!sidebarVisible && (
           <button
             onClick={() => setSidebarVisible(true)}
             title="Show sidebar"
             aria-label="Show sidebar"
-            className="absolute left-[84px] top-[8px] z-20 flex items-center justify-center w-7 h-6 rounded-full border border-border/60 bg-bg/60 text-fg-subtle hover:text-fg hover:border-accent/40 hover:bg-bg-muted/60 transition-colors duration-150 pointer-events-auto"
+            style={{ left: 84, top: 11 }}
+            className="fixed z-20 flex items-center justify-center w-7 h-6 rounded-full border border-border/60 bg-bg/60 text-fg-subtle hover:text-fg hover:border-accent/40 hover:bg-bg-muted/60 transition-colors duration-150 pointer-events-auto"
           >
-            {/* panel-left icon: left stripe + right-pointing chevron */}
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
               <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
               <path d="M6 3v10" />
@@ -47,15 +65,10 @@ function MainUI() {
             </svg>
           </button>
         )}
+
         <div className="relative flex-1 min-w-0">
           <div className="absolute inset-0">
             <ChatPanel />
-          </div>
-          <div className="absolute top-0 left-0 right-0 z-10 overflow-visible pointer-events-none">
-            <Toolbar
-              sidebarCollapsed={!sidebarVisible}
-              onExpandSidebar={() => setSidebarVisible(true)}
-            />
           </div>
         </div>
         {filePanelOpen && <FilePanel />}
