@@ -12,6 +12,7 @@ use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 use tokio::sync::{oneshot, Mutex};
 
 use crate::error::{AppError, AppResult};
+use crate::file_activity;
 use crate::kiro_discovery;
 
 /// A lightweight handle that can send a `session/cancel` notification without
@@ -287,6 +288,14 @@ fn dispatch(
         "session/update" => {
             if let Err(e) = app.emit("session-update", &params) {
                 tracing::warn!(err = %e, "emit session-update failed");
+            }
+            // Side-channel: extract any file path Kiro is touching and emit a
+            // clean `file-activity` event so the frontend panel can react
+            // without re-parsing the full tool_call wire shape.
+            if let Some(ev) = file_activity::extract(&params) {
+                if let Err(e) = app.emit("file-activity", &ev) {
+                    tracing::warn!(err = %e, "emit file-activity failed");
+                }
             }
         }
         // Surface three _kiro.dev/* streams that have UI consumers. Others stay

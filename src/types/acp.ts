@@ -137,6 +137,16 @@ export interface PromptResult {
   stopReason: "end_turn" | string;
 }
 
+/** Emitted by the Rust layer whenever Kiro reads or writes a file. */
+export interface FileActivityEvent {
+  /** Absolute path of the file. */
+  path: string;
+  /** "read" | "write" */
+  activity: "read" | "write";
+  /** The ACP tool kind, e.g. "edit", "read", "grep". */
+  toolKind: string;
+}
+
 export type AppError =
   | { kind: "kiro_not_found"; message: string }
   | { kind: "auth_required"; message: string }

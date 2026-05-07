@@ -19,9 +19,11 @@ export function useOpenWorkspace() {
 
   return useCallback(
     async (path: string) => {
-      resetSession();
       try {
         const res = await sessionNew(path);
+        // Reset chat state and hydrate new session atomically — no intermediate
+        // state where sessionId is null, which would flash the WorkspacePicker.
+        resetSession();
         hydrateFromSessionResult(res);
         setSession(res.sessionId);
         setWorkspace(path);

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { onAcpStatus, onKiroMetadata, onSessionUpdate } from "../lib/tauri-bridge";
+import { onAcpStatus, onFileActivity, onKiroMetadata, onSessionUpdate } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 
 /**
@@ -25,16 +25,27 @@ import { useApp } from "../stores/app-store";
  *   session change and risk duplicate deliveries).
  */
 
-let subscribed = false;
-let unsubUpdate: Promise<() => void> | null = null;
-let unsubStatus: Promise<() => void> | null = null;
-let unsubMetadata: Promise<() => void> | null = null;
+// Store the latch on globalThis so Vite HMR module reloads don't reset it
+// and spin up duplicate listeners.
+const g = globalThis as Record<string, unknown>;
+if (!g.__kiroAcpUnsub) {
+  g.__kiroAcpUnsub = { subscribed: false, update: null, status: null, metadata: null, fileActivity: null };
+}
+const _state = g.__kiroAcpUnsub as {
+  subscribed: boolean;
+  update: Promise<() => void> | null;
+  status: Promise<() => void> | null;
+  metadata: Promise<() => void> | null;
+  fileActivity: Promise<() => void> | null;
+};
 
 export function useAcp() {
   const appendChunk = useApp((s) => s.appendChunk);
   const addOrUpdateToolCall = useApp((s) => s.addOrUpdateToolCall);
   const setAcpStatus = useApp((s) => s.setAcpStatus);
   const applyMetadata = useApp((s) => s.applyMetadata);
+  const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
+  const addFileActivityToToolCall = useApp((s) => s.addFileActivityToToolCall);
 
   // Latest-value ref so updates for the active session aren't dropped without
   // putting sessionId in effect deps (which would re-subscribe on every change).
@@ -44,11 +55,14 @@ export function useAcp() {
     currentSessionIdRef.current = sessionId;
   }, [sessionId]);
 
-  useEffect(() => {
-    if (subscribed) return;
-    subscribed = true;
+  // Track the most recent tool call ID so file-activity events can be attached.
+  const lastToolCallIdRef = useRef<string | null>(null);
 
-    unsubUpdate = onSessionUpdate(({ sessionId: incoming, update }) => {
+  useEffect(() => {
+    if (_state.subscribed) return;
+    _state.subscribed = true;
+
+    _state.update = onSessionUpdate(({ sessionId: incoming, update }) => {
       const active = currentSessionIdRef.current;
       if (active && incoming !== active) return;
 
@@ -65,6 +79,7 @@ export function useAcp() {
             kind: string;
             content?: unknown[];
           };
+          lastToolCallIdRef.current = tc.toolCallId;
           addOrUpdateToolCall({
             toolCallId: tc.toolCallId,
             title: tc.title,
@@ -82,6 +97,7 @@ export function useAcp() {
             status: string;
             content?: unknown[];
           };
+          lastToolCallIdRef.current = tc.toolCallId;
           addOrUpdateToolCall({
             toolCallId: tc.toolCallId,
             title: tc.title ?? "",
@@ -97,21 +113,34 @@ export function useAcp() {
       }
     });
 
-    unsubStatus = onAcpStatus((s) => setAcpStatus(s));
-    unsubMetadata = onKiroMetadata((e) => applyMetadata(e));
+    // File activity: emitted by Rust after extracting paths from tool_call events.
+    // Store the path for display in the tool call card; do NOT auto-open the panel.
+    // The user can click the preview button in the tool call card to open it.
+    _state.fileActivity = onFileActivity(({ path }) => {
+      setPreviewFilePath(path); // pre-load so panel opens instantly if user clicks
+      const toolCallId = lastToolCallIdRef.current;
+      if (toolCallId) {
+        addFileActivityToToolCall(toolCallId, path);
+      }
+    });
+
+    _state.status = onAcpStatus((s) => setAcpStatus(s));
+    _state.metadata = onKiroMetadata((e) => applyMetadata(e));
 
     // Intentionally no cleanup: subscriptions live for the app's lifetime.
     // The `subscribed` latch makes StrictMode's double-invoke a no-op.
-  }, [appendChunk, addOrUpdateToolCall, setAcpStatus, applyMetadata]);
+  }, [appendChunk, addOrUpdateToolCall, setAcpStatus, applyMetadata, setPreviewFilePath, addFileActivityToToolCall]);
 }
 
 /** Test / teardown helper — not used by the app itself. */
 export async function _unsubscribeAcpForTests() {
-  subscribed = false;
-  if (unsubUpdate) (await unsubUpdate)();
-  if (unsubStatus) (await unsubStatus)();
-  if (unsubMetadata) (await unsubMetadata)();
-  unsubUpdate = null;
-  unsubStatus = null;
-  unsubMetadata = null;
+  _state.subscribed = false;
+  if (_state.update) (await _state.update)();
+  if (_state.status) (await _state.status)();
+  if (_state.metadata) (await _state.metadata)();
+  if (_state.fileActivity) (await _state.fileActivity)();
+  _state.update = null;
+  _state.status = null;
+  _state.metadata = null;
+  _state.fileActivity = null;
 }

@@ -53,6 +53,8 @@ body,
 #root {
   height: 100%;
   margin: 0;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 body {
@@ -68,6 +70,32 @@ body {
   transition: background-color 180ms ease, color 180ms ease;
 }
 
+
+/* Message content should remain selectable for copy-paste. */
+.kiro-prose,
+.kiro-prose * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Drag regions — CSS-level drag required for macOS WKWebView. */
+[data-tauri-drag-region] {
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+/* Interactive elements inside drag regions must opt out. */
+[data-tauri-drag-region] button,
+[data-tauri-drag-region] input,
+[data-tauri-drag-region] a,
+[data-tauri-drag-region] select,
+[data-tauri-drag-region] [role="button"] {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
 
 /* Thin, unobtrusive scrollbar that matches the theme. */
 *::-webkit-scrollbar {

@@ -2,6 +2,7 @@ mod acp_client;
 mod auth_manager;
 mod commands;
 mod error;
+mod file_activity;
 mod kiro_discovery;
 mod session_store;
 mod workspace_scanner;

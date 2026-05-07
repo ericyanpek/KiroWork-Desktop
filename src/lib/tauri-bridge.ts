@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   ContentBlock,
+  FileActivityEvent,
   InitializeResult,
   KiroMetadataEvent,
   LoadSessionResult,
@@ -134,4 +135,11 @@ export function onKiroSubagents(
   cb: (payload: unknown) => void,
 ): Promise<UnlistenFn> {
   return listen<unknown>("kiro-subagents", (e) => cb(e.payload));
+}
+
+/** Fires whenever Kiro reads or writes a file (extracted by Rust from tool_call events). */
+export function onFileActivity(
+  cb: (ev: FileActivityEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<FileActivityEvent>("file-activity", (e) => cb(e.payload));
 }

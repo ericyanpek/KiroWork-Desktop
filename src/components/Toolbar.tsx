@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../stores/app-store";
 import { setMode, setModel } from "../lib/tauri-bridge";
@@ -7,6 +8,30 @@ import { useThemeMode, type ThemeMode } from "../hooks/useTheme";
 import type { AppError } from "../types/acp";
 import { Dropdown, DropdownItem } from "./Dropdown";
 import { ContextGauge } from "./ContextGauge";
+
+function FilePanelToggle() {
+  const filePanelOpen = useApp((s) => s.filePanelOpen);
+  const setFilePanelOpen = useApp((s) => s.setFilePanelOpen);
+
+  return (
+    <button
+      onClick={() => setFilePanelOpen(!filePanelOpen)}
+      title={filePanelOpen ? "Hide file panel" : "Show file panel"}
+      aria-label={filePanelOpen ? "Hide file panel" : "Show file panel"}
+      className={`flex items-center justify-center w-7 h-6 rounded-full border transition-colors duration-150 ${
+        filePanelOpen
+          ? "border-accent/60 bg-accent/10 text-accent hover:bg-accent/20"
+          : "border-border/60 bg-bg/60 text-fg-subtle hover:text-fg hover:border-accent/40 hover:bg-bg-muted/60"
+      }`}
+    >
+      {/* panel-right icon */}
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+        <path d="M10 3v10" />
+      </svg>
+    </button>
+  );
+}
 
 const THEME_OPTIONS: { value: ThemeMode; label: string; icon: string }[] = [
   { value: "light", label: "Light", icon: "☀" },
@@ -139,7 +164,7 @@ export function Toolbar({
   const currentMode = availableModes.find((m) => m.id === currentModeId);
 
   return (
-    <div className={`relative z-10 mr-2 mt-[6px] rounded-xl bg-bg-muted/10 backdrop-blur-xl px-3 py-1 flex items-center gap-2 text-xs shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.15),0_0_0_1px_hsl(var(--border)/0.5)] pointer-events-auto ${sidebarCollapsed ? "ml-[120px]" : "ml-2"}`}>
+    <div className={`relative z-10 mr-2 mt-[6px] rounded-xl bg-bg-muted/10 backdrop-blur-xl px-3 py-1 flex items-center gap-2 text-xs shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.15),0_0_0_1px_hsl(var(--border)/0.5)] pointer-events-auto min-w-0 ${sidebarCollapsed ? "ml-[120px]" : "ml-2"}`}>
 
 
       {/* Unified workspace pill — click anywhere to open/switch folder */}
@@ -148,7 +173,7 @@ export function Toolbar({
         disabled={busy}
         title={workspacePath ? `Switch folder (${workspacePath})` : "Open folder"}
         aria-label={workspacePath ? "Switch folder" : "Open folder"}
-        className="group flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-muted/30 px-2.5 py-1 hover:border-accent/40 hover:bg-bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 min-w-0"
+        className="group flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-muted/30 px-2.5 py-1 hover:border-accent/40 hover:bg-bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 flex-shrink-0"
       >
         {/* Connection dot */}
         <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)] flex-shrink-0" />
@@ -182,6 +207,7 @@ export function Toolbar({
       {/* Model + agent dropdowns */}
       {availableModels.length > 0 && (
         <Dropdown
+          className="flex-shrink-0"
           label={
             <span className="flex items-center gap-1">
               <span className="text-fg-subtle/70">model</span>
@@ -206,6 +232,7 @@ export function Toolbar({
 
       {availableModes.length > 0 && (
         <Dropdown
+          className="flex-shrink-0"
           label={
             <span className="flex items-center gap-1">
               <span className="text-fg-subtle/70">agent</span>
@@ -228,19 +255,22 @@ export function Toolbar({
         </Dropdown>
       )}
 
-      {/* Right: theme switcher + context gauge + session id */}
-      <div className="ml-auto flex items-center gap-2.5">
-        <ThemeSwitcher />
+      {/* Drag region spacer — fills the gap between left and right controls */}
+      <div
+        data-tauri-drag-region
+        className="flex-1 self-stretch"
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          console.log("drag mousedown fired");
+          getCurrentWindow().startDragging();
+        }}
+      />
+
+      {/* Right controls — left-to-right: context gauge, theme, panel toggle (panel rightmost, nearest to the panel) */}
+      <div className="flex items-center gap-2.5 flex-shrink-0">
         <ContextGauge percentage={contextUsagePercentage} />
-        {sessionId && (
-          <span
-            className="inline-flex items-center gap-1 rounded-full border border-border/40 bg-bg-muted/30 px-2 py-0.5 font-mono text-[10px] text-fg-subtle/40 tabular-nums select-none"
-            title={sessionId}
-          >
-            <span className="opacity-50">#</span>
-            {sessionId.slice(0, 7)}
-          </span>
-        )}
+        <ThemeSwitcher />
+        <FilePanelToggle />
       </div>
     </div>
   );

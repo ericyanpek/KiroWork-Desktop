@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { deleteSession } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 import {
@@ -201,18 +202,25 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
 
   return (
     <aside className="w-[260px] flex-shrink-0 flex flex-col min-h-0 mt-[6px] mx-2 mb-2 rounded-xl bg-bg-muted shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.12),0_0_0_1px_hsl(var(--border)/0.6)] overflow-hidden">
-      <div data-tauri-drag-region className="pl-[80px] pr-3 h-[32px] border-b border-border/50 flex items-center justify-end">
+      <div
+        data-tauri-drag-region
+        className="pl-[80px] pr-3 h-[32px] border-b border-border/50 flex items-center justify-end select-none"
+        onMouseDown={(e) => {
+          if (e.button !== 0) return;
+          getCurrentWindow().startDragging();
+        }}
+      >
         <button
           onClick={onCollapse}
           title="Collapse sidebar"
           aria-label="Collapse sidebar"
-          className="text-fg-subtle hover:text-fg transition-colors p-1 rounded hover:bg-bg-muted"
+          className="flex items-center justify-center w-7 h-6 rounded-full border border-border/60 bg-bg/60 text-fg-subtle hover:text-fg hover:border-accent/40 hover:bg-bg-muted/60 transition-colors duration-150"
         >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            {/* left-pointing chevron inside a panel */}
+          {/* panel-left icon: left stripe + left-pointing chevron */}
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
             <path d="M6 3v10" />
-            <path d="M10.5 6L8.5 8L10.5 10" />
+            <path d="M9.5 6L7.5 8L9.5 10" />
           </svg>
         </button>
       </div>

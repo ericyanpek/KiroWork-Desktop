@@ -20,6 +20,8 @@ export type ToolCallView = {
    *  `[{ type: "diff", path, oldText, newText }, ...]`. Other types pass
    *  through untouched so future shapes reach the UI without Rust edits. */
   content?: unknown[];
+  /** File paths accessed by this tool call (from Rust file-activity events). */
+  filePaths?: string[];
 };
 
 export type Message = {
@@ -58,6 +60,10 @@ export interface AppState {
 
   error: AppError | null;
 
+  // File preview panel
+  previewFilePath: string | null;
+  filePanelOpen: boolean;
+
   // actions
   setAcpStatus: (s: AcpStatus) => void;
   setAuth: (s: AuthStatus) => void;
@@ -83,6 +89,10 @@ export interface AppState {
 
   // Phase2-b
   setWorkspaceManifest: (m: WorkspaceManifest | null) => void;
+
+  setPreviewFilePath: (path: string | null) => void;
+  setFilePanelOpen: (open: boolean) => void;
+  addFileActivityToToolCall: (toolCallId: string, path: string) => void;
 
   /** Replace messages wholesale — used by session replay. Does NOT touch
    *  isStreaming or invoke any ACP calls. */
@@ -162,6 +172,8 @@ export const useApp = create<AppState>((set) => ({
   persistedSessions: [],
   workspaceManifest: null,
   error: null,
+  previewFilePath: null,
+  filePanelOpen: false,
 
   setAcpStatus: (s) => set({ acpStatus: s }),
   setAuth: (s) => set({ authStatus: s }),
@@ -262,6 +274,24 @@ export const useApp = create<AppState>((set) => ({
     })),
 
   setWorkspaceManifest: (m) => set({ workspaceManifest: m }),
+
+  setPreviewFilePath: (path) => set({ previewFilePath: path }),
+  setFilePanelOpen: (open) => set({ filePanelOpen: open }),
+
+  addFileActivityToToolCall: (toolCallId, path) =>
+    set((state) => {
+      const msgs = state.messages.map((m) => {
+        if (m.role !== "assistant" || !m.toolCalls) return m;
+        const tcs = m.toolCalls.map((tc) => {
+          if (tc.toolCallId !== toolCallId) return tc;
+          const existing = tc.filePaths ?? [];
+          if (existing.includes(path)) return tc;
+          return { ...tc, filePaths: [...existing, path] };
+        });
+        return { ...m, toolCalls: tcs };
+      });
+      return { messages: msgs };
+    }),
 
   setMessages: (msgs) => set({ messages: msgs }),
 

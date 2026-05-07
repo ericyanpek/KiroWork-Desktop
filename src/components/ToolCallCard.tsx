@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { diffLines } from "diff";
 import type { ToolCallView } from "../stores/app-store";
+import { useApp } from "../stores/app-store";
 import type { ToolCallContent } from "../types/acp";
 
 function basename(p: string): string {
@@ -41,6 +42,9 @@ function isDiffChunk(c: ToolCallContent): c is DiffChunk {
 /** Render one before/after pair as a unified diff block. */
 function DiffBlock({ chunk, initiallyExpanded }: { chunk: DiffChunk; initiallyExpanded: boolean }) {
   const [expanded, setExpanded] = useState(initiallyExpanded);
+  const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
+  const setFilePanelOpen = useApp((s) => s.setFilePanelOpen);
+  const previewFilePath = useApp((s) => s.previewFilePath);
 
   const parts = useMemo(
     () => diffLines(chunk.oldText ?? "", chunk.newText ?? ""),
@@ -65,10 +69,28 @@ function DiffBlock({ chunk, initiallyExpanded }: { chunk: DiffChunk; initiallyEx
   return (
     <div className="border border-border rounded-md overflow-hidden bg-bg-muted/40">
       <div className="flex items-center gap-2 px-3 py-1.5 text-xs text-fg-subtle border-b border-border bg-bg-muted/60">
-        <span className="font-mono text-fg-muted truncate" title={chunk.path}>
+        <span className="font-mono truncate text-fg-muted" title={chunk.path}>
           {basename(chunk.path)}
         </span>
-        <span className="badge badge-info">diff</span>
+        <span className="badge badge-info flex-shrink-0">diff</span>
+        <button
+          onClick={() => {
+            setPreviewFilePath(chunk.path);
+            setFilePanelOpen(true);
+          }}
+          title={`Preview ${chunk.path}`}
+          className={`ml-auto flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] transition-colors duration-150 ${
+            previewFilePath === chunk.path
+              ? "text-accent bg-accent/10"
+              : "text-fg-subtle/60 hover:text-accent hover:bg-accent/10"
+          }`}
+        >
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+            <circle cx="8" cy="8" r="2" />
+          </svg>
+          Preview
+        </button>
       </div>
       <pre className="text-[11px] leading-5 font-mono overflow-x-auto p-0 m-0">
         {visible.map((l, i) => (
@@ -119,6 +141,36 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
+function FilePreviewChips({ paths }: { paths: string[] }) {
+  const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
+  const setFilePanelOpen = useApp((s) => s.setFilePanelOpen);
+  const previewFilePath = useApp((s) => s.previewFilePath);
+
+  if (paths.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1 ml-6">
+      {paths.map((p) => (
+        <button
+          key={p}
+          onClick={() => { setPreviewFilePath(p); setFilePanelOpen(true); }}
+          title={p}
+          className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[10px] font-mono transition-colors duration-150 ${
+            previewFilePath === p
+              ? "border-accent/50 bg-accent/10 text-accent"
+              : "border-border/50 bg-bg-muted/40 text-fg-subtle hover:text-accent hover:border-accent/40 hover:bg-accent/5"
+          }`}
+        >
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" />
+            <circle cx="8" cy="8" r="2" />
+          </svg>
+          {basename(p)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ToolCallCard({ call }: { call: ToolCallView }) {
   const content = (call.content ?? []) as ToolCallContent[];
   const diffs = content.filter(isDiffChunk);
@@ -156,13 +208,18 @@ export function ToolCallCard({ call }: { call: ToolCallView }) {
     );
   }
 
-  // Fallback: Phase 1 style one-liner.
+  // Fallback: one-liner with optional file preview chips.
   return (
-    <div className="text-xs text-fg-subtle font-mono flex items-center gap-2">
-      {statusDot(call.status)}
-      <span className="opacity-70">Tool</span>
-      <span className="text-fg-muted">{call.title || call.kind}</span>
-      <span className="text-fg-subtle">({call.status})</span>
+    <div className="flex flex-col gap-0.5">
+      <div className="text-xs text-fg-subtle font-mono flex items-center gap-2">
+        {statusDot(call.status)}
+        <span className="opacity-70">Tool</span>
+        <span className="text-fg-muted">{call.title || call.kind}</span>
+        <span className="text-fg-subtle">({call.status})</span>
+      </div>
+      {call.filePaths && call.filePaths.length > 0 && (
+        <FilePreviewChips paths={call.filePaths} />
+      )}
     </div>
   );
 }
