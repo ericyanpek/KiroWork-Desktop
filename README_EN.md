@@ -15,20 +15,16 @@
 
 | Feature | Description |
 |---|---|
-| 🪶 **Lightweight Native Architecture** | Built with Tauri and the macOS system WebView, without bundling a browser engine, model runtime, or Kiro CLI. |
-| 🗂 **Multi-Session Management** | Search, restore, and delete locally persisted sessions; rebuild message history from session JSONL. |
-| 💬 **Streaming Agent Conversations** | Display responses, reasoning, tool call status, file activity, and edit diffs in real time. |
-| 🔄 **Automatic Connection Recovery** | Reconnect automatically after an unexpected Kiro CLI ACP process exit and restore the current workspace and active session. |
-| 🧭 **CLI Compatibility and Capability Discovery** | Validate the Kiro CLI version and dynamically expose models, modes, commands, and configuration reported by the CLI. |
-| 🛡 **Local Security Boundary** | Credentials remain managed by Kiro CLI; the frontend stores no tokens; Auto permissions are never written to permanent policy. |
-| 🔐 **Tool Permission Controls** | Use Ask for per-request confirmation or Auto for automatic approval; permission state lasts only for the current app run. |
-| 🤖 **Live Model and Agent Switching** | Switch models, agent modes, and reasoning effort within the active session. |
-| ⌨️ **In-Progress Controls** | Use dynamic slash commands, Queue Steering, independent Stop, and prompt reuse from history. |
-| 🧩 **MCP and Subagent Status** | View MCP connection/OAuth status and Subagent activity. |
-| 📁 **Project Configuration Awareness** | Watch `.kiro/skills`, MCP, and Steering configuration changes in real time. |
+| 🪶 **Lightweight Native Desktop** | Built with Tauri and the macOS system WebView, without bundling a browser engine, model runtime, or Kiro CLI. |
+| 🗂 **Session Continuity** | Search, restore, and delete local sessions; reconnect and restore the active session after an unexpected ACP exit. |
+| 💬 **Visual Agent Workflow** | Stream responses, reasoning, tool calls, file activity, and edit diffs. |
 | 🖼 **Multimodal Input** | Add images through the file picker or clipboard, with thumbnail previews before sending. |
-| 📊 **Context and Export** | View context-window usage, switch themes, and export transcripts as Markdown. |
-| 🈶 **macOS IME Compatibility** | Handle WKWebView composition and Enter timing to prevent accidental sends. |
+| 🛡 **Local Permission Controls** | Keep credentials managed by Kiro CLI; use Ask or Auto without writing automatic approvals to permanent policy. |
+| 🎛 **Live Agent Controls** | Use models, modes, effort, slash commands, Queue Steering, and independent Stop. |
+| 🧩 **Project Ecosystem Integration** | Discover Skills, MCP, and Steering configuration while displaying MCP OAuth and Subagent status. |
+
+Additional capabilities: context usage, theme switching, Markdown transcript
+export, and macOS IME compatibility.
 
 ---
 

@@ -15,20 +15,15 @@
 
 | 特性 | 说明 |
 |---|---|
-| 🪶 **轻量原生架构** | 基于 Tauri 和 macOS 系统 WebView，不捆绑浏览器引擎、模型运行时或 Kiro CLI。 |
-| 🗂 **多会话管理** | 搜索、恢复和删除本地持久化会话；通过 session JSONL 重建历史消息。 |
-| 💬 **流式 Agent 对话** | 实时展示回复、reasoning、工具调用状态、文件活动和编辑 diff。 |
-| 🔄 **自动恢复连接** | Kiro CLI ACP 进程异常退出后自动重连，并恢复当前 workspace 和活跃会话。 |
-| 🧭 **CLI 兼容与能力发现** | 校验 Kiro CLI 版本，并根据 CLI 实际返回动态展示模型、模式、命令和配置。 |
-| 🛡 **本地安全边界** | 凭据由 Kiro CLI 管理；前端不保存 Token；Auto 权限不会写入永久策略。 |
-| 🔐 **工具权限控制** | 支持 Ask 逐次确认与 Auto 自动批准；权限状态仅在当前应用运行期间生效。 |
-| 🤖 **模型与 Agent 热切换** | 在当前会话内切换模型、Agent 模式和 reasoning effort。 |
-| ⌨️ **运行中控制** | 支持动态 Slash Command、Queue Steering、独立 Stop 和历史 prompt 复用。 |
-| 🧩 **MCP 与 Subagent 状态** | 展示 MCP 连接/OAuth 状态和 Subagent 活动。 |
-| 📁 **项目配置感知** | 实时监听 `.kiro/skills`、MCP 和 Steering 配置变化。 |
+| 🪶 **轻量原生桌面端** | 基于 Tauri 和 macOS 系统 WebView，不捆绑浏览器引擎、模型运行时或 Kiro CLI。 |
+| 🗂 **会话连续性** | 搜索、恢复和删除本地会话；ACP 异常退出后自动重连并恢复活跃会话。 |
+| 💬 **可视化 Agent 工作流** | 流式展示回复、reasoning、工具调用、文件活动和编辑 diff。 |
 | 🖼 **多模态输入** | 支持文件选择器和剪贴板图片输入，发送前提供缩略图预览。 |
-| 📊 **上下文与导出** | 展示 context window 用量，支持主题切换和 Markdown transcript 导出。 |
-| 🈶 **macOS 输入法兼容** | 处理 WKWebView 中输入法 composition 与 Enter 的时序，避免误发送。 |
+| 🛡 **本地权限控制** | 凭据由 Kiro CLI 管理；支持 Ask/Auto，自动批准不会写入永久策略。 |
+| 🎛 **Agent 实时控制** | 支持模型、模式、effort、Slash Command、Queue Steering 和独立 Stop。 |
+| 🧩 **项目生态集成** | 感知 Skills、MCP 和 Steering 配置，并展示 MCP OAuth 与 Subagent 状态。 |
+
+其他能力：上下文用量、主题切换、Markdown transcript 导出和 macOS 输入法兼容。
 
 ---
 
