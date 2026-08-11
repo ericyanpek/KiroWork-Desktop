@@ -50,6 +50,25 @@ export interface InitializeResult {
   compatibilityWarning?: string | null;
 }
 
+export type AcpWireStatus =
+  | "connected"
+  | "disconnected"
+  | "reconnecting"
+  | "reconnect_failed";
+
+export interface AcpStatusEvent {
+  status: AcpWireStatus;
+  recoverable: boolean;
+  message?: string;
+}
+
+export interface ReconnectResult {
+  session?: SessionLoadResult | null;
+  cliVersion: string;
+  agentCapabilities: unknown;
+  compatibilityWarning?: string | null;
+}
+
 export type PermissionMode = "ask" | "auto";
 
 export interface PermissionOption {

@@ -12,6 +12,7 @@ Tauri 2 启动本机 `kiro-cli acp` 子进程，以 JSON-RPC 2.0 与 Kiro Agent
 ## 功能
 
 - 多会话列表、搜索、恢复和删除
+- Kiro CLI 异常退出后自动重连并恢复活跃会话
 - Agent 回复、reasoning 和工具调用流式展示
 - 文件变更 diff、文件活动与侧边预览
 - 图片选择和剪贴板图片输入
@@ -47,6 +48,7 @@ npm run tauri dev
 
 ```sh
 npm run build
+npm run test:run
 cd src-tauri
 cargo test
 cargo clippy --all-targets -- -D warnings
@@ -112,7 +114,6 @@ src-tauri/src/
 ## 当前限制
 
 - `_kiro.dev/*` 和 `_session/steer` 属于扩展协议，能力依赖已安装 CLI。
-- 应用当前不会在 Kiro CLI 异常退出后自动恢复 ACP 与活跃会话。
 - Context compaction 等部分扩展状态尚未提供独立 UI。
 - 尚未配置自动更新、Developer ID 签名和 Apple notarization。
 

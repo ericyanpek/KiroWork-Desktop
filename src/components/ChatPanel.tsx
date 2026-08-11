@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useApp } from "../stores/app-store";
+import { retryAcpConnection } from "../hooks/useAcp";
 import { MessageBubble } from "./MessageBubble";
 import { InputBar } from "./InputBar";
 import { KiroMascot } from "./KiroMark";
@@ -39,6 +40,7 @@ function SwitchingSkeleton() {
 export function ChatPanel() {
   const messages = useApp((s) => s.messages);
   const error = useApp((s) => s.error);
+  const acpStatus = useApp((s) => s.acpStatus);
   const isSwitchingSession = useApp((s) => s.isSwitchingSession);
   const bottomRef = useRef<HTMLDivElement>(null);
   const [quickInput, setQuickInput] = useState<string | null>(null);
@@ -90,8 +92,20 @@ export function ChatPanel() {
             />
           ))}
           {error && (
-            <div className="rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-sm text-status-error">
-              <span className="font-medium">{error.kind}:</span> {error.message}
+            <div className="flex items-center gap-3 rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-sm text-status-error">
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">{error.kind}:</span>{" "}
+                {error.message}
+              </div>
+              {(acpStatus === "error" || acpStatus === "disconnected") && (
+                <button
+                  type="button"
+                  onClick={() => void retryAcpConnection()}
+                  className="flex-shrink-0 rounded-md border border-status-error/30 px-2.5 py-1 text-xs font-medium hover:bg-status-error/10"
+                >
+                  Retry
+                </button>
+              )}
             </div>
           )}
           {/* scroll-mb reserves space below the anchor so auto-scroll leaves

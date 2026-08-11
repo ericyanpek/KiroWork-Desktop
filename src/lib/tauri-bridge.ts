@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   ContentBlock,
+  AcpStatusEvent,
   FileActivityEvent,
   InitializeResult,
   KiroMetadataEvent,
@@ -9,6 +10,7 @@ import type {
   McpStatusEvent,
   PermissionRequestEvent,
   PromptResult,
+  ReconnectResult,
   SlashCommand,
   SessionMeta,
   SessionNewResult,
@@ -29,6 +31,18 @@ export function acpDisconnect(): Promise<void> {
 
 export function acpStatus(): Promise<"connected" | "disconnected"> {
   return invoke<"connected" | "disconnected">("acp_status");
+}
+
+export function reconnectAcp(
+  sessionId: string | null,
+  cwd: string | null,
+  autoApprove: boolean,
+): Promise<ReconnectResult> {
+  return invoke<ReconnectResult>("reconnect_acp", {
+    sessionId,
+    cwd,
+    autoApprove,
+  });
 }
 
 export function sessionNew(cwd: string): Promise<SessionNewResult> {
@@ -141,9 +155,9 @@ export function onSessionUpdate(
 }
 
 export function onAcpStatus(
-  cb: (status: "connected" | "disconnected") => void,
+  cb: (event: AcpStatusEvent) => void,
 ): Promise<UnlistenFn> {
-  return listen<"connected" | "disconnected">("acp-status-changed", (e) =>
+  return listen<AcpStatusEvent>("acp-status-changed", (e) =>
     cb(e.payload),
   );
 }

@@ -158,6 +158,7 @@ export function Toolbar({
   onExpandSidebar?: () => void;
 }) {
   const sessionId = useApp((s) => s.sessionId);
+  const acpStatus = useApp((s) => s.acpStatus);
   const workspacePath = useApp((s) => s.workspacePath);
   const currentModelId = useApp((s) => s.currentModelId);
   const currentModeId = useApp((s) => s.currentModeId);
@@ -274,8 +275,20 @@ export function Toolbar({
       >
         {/* Connection dot */}
         <span
-          className="inline-block w-1.5 h-1.5 rounded-full bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)] flex-shrink-0"
-          title={cliVersion ?? "Kiro CLI connected"}
+          className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+            acpStatus === "connected"
+              ? "bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)]"
+              : acpStatus === "reconnecting" || acpStatus === "connecting"
+                ? "bg-status-warning animate-pulse"
+                : "bg-status-error"
+          }`}
+          title={
+            acpStatus === "connected"
+              ? (cliVersion ?? "Kiro CLI connected")
+              : acpStatus === "reconnecting"
+                ? "Reconnecting to Kiro CLI"
+                : "Kiro CLI disconnected"
+          }
         />
 
         {/* Directory name — truncates gracefully */}

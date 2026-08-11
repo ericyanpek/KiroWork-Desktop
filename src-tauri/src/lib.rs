@@ -27,6 +27,7 @@ pub fn run() {
             commands::acp_connect,
             commands::acp_disconnect,
             commands::acp_status,
+            commands::reconnect_acp,
             commands::session_new,
             commands::session_prompt,
             commands::session_cancel,

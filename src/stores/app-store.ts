@@ -41,7 +41,12 @@ export type Message = {
   steering?: boolean;
 };
 
-export type AcpStatus = "disconnected" | "connecting" | "connected" | "error";
+export type AcpStatus =
+  | "disconnected"
+  | "connecting"
+  | "reconnecting"
+  | "connected"
+  | "error";
 export type AuthStatus = "unknown" | "checking" | "ok" | "required" | "not_installed";
 
 export interface AppState {

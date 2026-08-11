@@ -54,6 +54,26 @@ pub struct PermissionRequestEvent {
     pub options: Vec<PermissionOption>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpStatusEvent {
+    pub status: String,
+    pub recoverable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
+pub fn emit_acp_status(app: &AppHandle, status: &str, recoverable: bool, message: Option<String>) {
+    let event = AcpStatusEvent {
+        status: status.to_string(),
+        recoverable,
+        message,
+    };
+    if let Err(error) = app.emit("acp-status-changed", event) {
+        tracing::warn!(%error, %status, "failed to emit ACP status");
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 enum RpcId {
     Number(String),
@@ -78,6 +98,15 @@ struct InboundRequest {
 
 type PendingResult = Result<Value, AppError>;
 
+struct ReaderState {
+    stdin: Arc<Mutex<ChildStdin>>,
+    pending: Arc<DashMap<RpcId, oneshot::Sender<PendingResult>>>,
+    inbound: Arc<DashMap<RpcId, InboundRequest>>,
+    auto_approve: Arc<AtomicBool>,
+    alive: Arc<AtomicBool>,
+    notify_on_exit: Arc<AtomicBool>,
+}
+
 pub struct AcpClient {
     child: Mutex<Child>,
     stdin: Arc<Mutex<ChildStdin>>,
@@ -86,6 +115,7 @@ pub struct AcpClient {
     next_id: AtomicU64,
     auto_approve: Arc<AtomicBool>,
     alive: Arc<AtomicBool>,
+    notify_on_exit: Arc<AtomicBool>,
     cli_version: String,
     agent_capabilities: Value,
     compatibility_warning: Option<String>,
@@ -140,16 +170,17 @@ impl AcpClient {
         let stdin = Arc::new(Mutex::new(stdin));
         let auto_approve = Arc::new(AtomicBool::new(false));
         let alive = Arc::new(AtomicBool::new(true));
+        let notify_on_exit = Arc::new(AtomicBool::new(true));
 
-        tokio::spawn(reader_loop(
-            stdout,
-            stdin.clone(),
-            pending.clone(),
-            inbound.clone(),
-            auto_approve.clone(),
-            alive.clone(),
-            app.clone(),
-        ));
+        let reader_state = ReaderState {
+            stdin: stdin.clone(),
+            pending: pending.clone(),
+            inbound: inbound.clone(),
+            auto_approve: auto_approve.clone(),
+            alive: alive.clone(),
+            notify_on_exit: notify_on_exit.clone(),
+        };
+        tokio::spawn(reader_loop(stdout, reader_state, app.clone()));
         tokio::spawn(stderr_loop(stderr));
 
         let mut client = Self {
@@ -160,6 +191,7 @@ impl AcpClient {
             next_id: AtomicU64::new(0),
             auto_approve,
             alive,
+            notify_on_exit,
             cli_version: cli_version.clone(),
             agent_capabilities: Value::Null,
             compatibility_warning: compatibility_warning.clone(),
@@ -316,6 +348,7 @@ impl AcpClient {
     }
 
     pub async fn shutdown(&self) {
+        self.notify_on_exit.store(false, Ordering::SeqCst);
         self.alive.store(false, Ordering::SeqCst);
         self.fail_all_pending("ACP connection closed");
         self.inbound.clear();
@@ -377,15 +410,7 @@ async fn send_error(
     .await
 }
 
-async fn reader_loop(
-    stdout: ChildStdout,
-    stdin: Arc<Mutex<ChildStdin>>,
-    pending: Arc<DashMap<RpcId, oneshot::Sender<PendingResult>>>,
-    inbound: Arc<DashMap<RpcId, InboundRequest>>,
-    auto_approve: Arc<AtomicBool>,
-    alive: Arc<AtomicBool>,
-    app: AppHandle,
-) {
+async fn reader_loop(stdout: ChildStdout, state: ReaderState, app: AppHandle) {
     let mut lines = BufReader::new(stdout).lines();
     loop {
         match lines.next_line().await {
@@ -402,10 +427,10 @@ async fn reader_loop(
                 };
                 dispatch(
                     msg,
-                    &stdin,
-                    &pending,
-                    &inbound,
-                    auto_approve.load(Ordering::SeqCst),
+                    &state.stdin,
+                    &state.pending,
+                    &state.inbound,
+                    state.auto_approve.load(Ordering::SeqCst),
                     &app,
                 )
                 .await;
@@ -420,10 +445,17 @@ async fn reader_loop(
             }
         }
     }
-    alive.store(false, Ordering::SeqCst);
-    fail_pending(&pending, "ACP process exited");
-    inbound.clear();
-    let _ = app.emit("acp-status-changed", "disconnected");
+    state.alive.store(false, Ordering::SeqCst);
+    fail_pending(&state.pending, "ACP process exited");
+    state.inbound.clear();
+    if state.notify_on_exit.load(Ordering::SeqCst) {
+        emit_acp_status(
+            &app,
+            "disconnected",
+            true,
+            Some("Kiro CLI ACP process exited unexpectedly".into()),
+        );
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

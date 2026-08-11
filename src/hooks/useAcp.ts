@@ -9,13 +9,18 @@ import {
   onMcpStatus,
   onPermissionRequest,
   onSessionUpdate,
+  reconnectAcp,
 } from "../lib/tauri-bridge";
+import {
+  normalizeCommands,
+  normalizeSubagents,
+} from "../lib/acp-normalizers";
+import {
+  retryWithDelays,
+  shouldAutoReconnect,
+} from "../lib/reconnect";
 import { useApp } from "../stores/app-store";
-import type {
-  ConfigOption,
-  SlashCommand,
-  SubagentView,
-} from "../types/acp";
+import type { AppError, ConfigOption, SubagentView } from "../types/acp";
 
 /**
  * Wires Tauri events into the zustand store. Mount once, high in the tree.
@@ -97,59 +102,6 @@ function _scheduleFlush() {
       _pendingThinking = "";
     }
   }, 0);
-}
-
-function normalizeCommands(payload: unknown): SlashCommand[] {
-  const object =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : null;
-  const raw = Array.isArray(payload)
-    ? payload
-    : object?.commands ?? object?.availableCommands ?? [];
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
-    if (typeof entry === "string") {
-      return [{ name: entry.replace(/^\//, ""), description: "" }];
-    }
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const name = String(item.name ?? item.command ?? "").replace(/^\//, "");
-    if (!name) return [];
-    return [{
-      name,
-      description: String(item.description ?? item.help ?? ""),
-      inputHint: item.inputHint ? String(item.inputHint) : undefined,
-    }];
-  });
-}
-
-function normalizeSubagents(payload: unknown): SubagentView[] {
-  const object =
-    payload && typeof payload === "object"
-      ? (payload as Record<string, unknown>)
-      : null;
-  const raw = Array.isArray(payload) ? payload : object?.subagents ?? [];
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((entry) => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const id = String(item.sessionId ?? item.id ?? "");
-    if (!id) return [];
-    const rawStatus = item.status;
-    const status =
-      typeof rawStatus === "string"
-        ? rawStatus
-        : rawStatus && typeof rawStatus === "object"
-          ? String((rawStatus as Record<string, unknown>).type ?? "working")
-          : "working";
-    return [{
-      id,
-      role: String(item.role ?? item.name ?? item.agentName ?? "subagent"),
-      status,
-      title: item.title ? String(item.title) : undefined,
-    }];
-  });
 }
 
 export function useAcp() {
@@ -291,9 +243,27 @@ export function useAcp() {
       }
     });
 
-    _state.status = onAcpStatus((s) => {
-      setAcpStatus(s);
-      if (s === "disconnected") clearPermissions();
+    _state.status = onAcpStatus((event) => {
+      if (event.status === "connected") {
+        setAcpStatus("connected");
+        return;
+      }
+      if (event.status === "reconnecting") {
+        setAcpStatus("reconnecting");
+        return;
+      }
+      if (event.status === "reconnect_failed") {
+        setAcpStatus(_reconnectPromise ? "reconnecting" : "error");
+        return;
+      }
+
+      _flushPendingNow();
+      useApp.getState().endTurn();
+      clearPermissions();
+      setAcpStatus("disconnected");
+      if (shouldAutoReconnect(event)) {
+        void retryAcpConnection();
+      }
     });
     _state.metadata = onKiroMetadata((e) => applyMetadata(e));
     _state.permission = onPermissionRequest(enqueuePermission);
@@ -352,6 +322,102 @@ export function useAcp() {
     setMcpStatus,
     setSteeringStatus,
   ]);
+}
+
+let _reconnectPromise: Promise<void> | null = null;
+
+function _flushPendingNow() {
+  if (_flushTimer !== null) {
+    clearTimeout(_flushTimer);
+    _flushTimer = null;
+  }
+  if (_pendingChunk && _flushFn) {
+    _flushFn(_pendingChunk);
+    _pendingChunk = "";
+  }
+  if (_pendingThinking && _thinkingFlushFn) {
+    _thinkingFlushFn(_pendingThinking);
+    _pendingThinking = "";
+  }
+}
+
+function reconnectError(error: unknown): AppError {
+  if (
+    error &&
+    typeof error === "object" &&
+    "kind" in error &&
+    "message" in error
+  ) {
+    return error as AppError;
+  }
+  return {
+    kind: "acp_connection_failed",
+    message:
+      error instanceof Error
+        ? error.message
+        : String(error ?? "ACP reconnect failed"),
+  };
+}
+
+/** Trigger the same bounded recovery used after an unexpected process exit. */
+export function retryAcpConnection(): Promise<void> {
+  if (_reconnectPromise) return _reconnectPromise;
+
+  const initial = useApp.getState();
+  const sessionId = initial.sessionId;
+  const cwd = initial.workspacePath;
+  if ((sessionId === null) !== (cwd === null)) {
+    const error: AppError = {
+      kind: "session_error",
+      message: "Cannot reconnect because the active session has no workspace",
+    };
+    initial.setAcpStatus("error");
+    initial.setError(error);
+    return Promise.resolve();
+  }
+
+  initial.endTurn();
+  initial.clearPermissions();
+  initial.setAcpStatus("reconnecting");
+  initial.setError(null);
+
+  const task = (async () => {
+    try {
+      const result = await retryWithDelays(() => {
+        const current = useApp.getState();
+        return reconnectAcp(
+          sessionId,
+          cwd,
+          current.permissionMode === "auto",
+        );
+      });
+      const current = useApp.getState();
+      current.setCliInfo(
+        result.cliVersion,
+        result.agentCapabilities,
+        result.compatibilityWarning,
+      );
+      if (
+        result.session &&
+        current.sessionId === sessionId &&
+        current.workspacePath === cwd
+      ) {
+        current.hydrateFromSessionResult(result.session);
+      }
+      current.setAcpStatus("connected");
+      current.setError(null);
+    } catch (error) {
+      const current = useApp.getState();
+      current.setAcpStatus("error");
+      current.setError(reconnectError(error));
+    }
+  })();
+
+  _reconnectPromise = task;
+  void task.finally(() => {
+    if (_reconnectPromise === task) _reconnectPromise = null;
+  });
+  return task;
 }
 
 /** Test / teardown helper — not used by the app itself. */

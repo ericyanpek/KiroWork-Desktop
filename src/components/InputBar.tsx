@@ -128,6 +128,7 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
   // is too short and isComposing is already false by the time keydown arrives.
   const compositionEndedAt = useRef(0);
   const isStreaming = useApp((s) => s.isStreaming);
+  const acpStatus = useApp((s) => s.acpStatus);
   const sessionId = useApp((s) => s.sessionId);
   const addUserMessage = useApp((s) => s.addUserMessage);
   const startTurn = useApp((s) => s.startTurn);
@@ -159,7 +160,7 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
   }, [commandQuery]);
 
   function canSend(): boolean {
-    if (!sessionId) return false;
+    if (!sessionId || acpStatus !== "connected") return false;
     if (isStreaming) return text.trim().length > 0;
     return text.trim().length > 0 || attachments.length > 0;
   }
@@ -373,14 +374,19 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
          *  contain:paint / will-change-transform here because in WKWebView
          *  they can interfere with pointer-event dispatch to nested buttons. */}
         <div className={`flex items-end gap-0 rounded-2xl border backdrop-blur-md isolate transition-colors duration-150 bg-bg-elevated/85 shadow-lg shadow-black/10 dark:shadow-black/30 ${
-          sessionId
+          sessionId && acpStatus === "connected"
             ? "border-border/70 focus-within:border-accent/60 focus-within:shadow-accent/10"
             : "border-border/40 opacity-60"
         }`}>
           {/* Attach button — sits left, vertically centered */}
           <button
             onClick={pickFiles}
-            disabled={!sessionId || attaching || isStreaming}
+            disabled={
+              !sessionId ||
+              acpStatus !== "connected" ||
+              attaching ||
+              isStreaming
+            }
             title="Attach image"
             aria-label="Attach image"
             className="self-center flex-shrink-0 ml-1.5 w-8 h-8 flex items-center justify-center rounded-full text-fg-subtle/70 hover:text-fg hover:bg-bg-muted/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
@@ -445,6 +451,10 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
             placeholder={
               !sessionId
                 ? "Open a folder to start"
+                : acpStatus === "reconnecting"
+                  ? "Reconnecting to Kiro CLI…"
+                  : acpStatus !== "connected"
+                    ? "Kiro CLI is disconnected"
                 : isStreaming
                   ? "Steer the current turn…"
                   : "Ask Kiro…"
@@ -496,7 +506,11 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
         </div>
 
         <div className="text-[11px] text-fg-subtle/50 mt-1.5 px-1 select-none">
-          {isStreaming
+          {acpStatus === "reconnecting"
+            ? "Restoring the active session…"
+            : acpStatus !== "connected"
+              ? "Connection unavailable"
+            : isStreaming
             ? steeringStatus === "consumed"
               ? "Steering applied"
               : steeringStatus === "queued"

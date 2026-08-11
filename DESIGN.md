@@ -56,6 +56,11 @@ workspace 配置扫描和 transcript 导出提供受控本地能力。
 请求路由使用 `DashMap<RpcId, oneshot::Sender<_>>`。`session/prompt` 可以
 长时间等待，同时 cancel、permission response 和其他请求仍可写入 stdin。
 
+reader loop 意外结束时，前端按 0、2、5 秒间隔执行最多三次恢复。每次恢复
+由单一 `reconnect_acp` command 串行完成进程重建、initialize 和
+`session/load`，成功前不开放输入。现有消息时间线原地保留，只更新
+model、mode 和 config 状态。主动关闭标记为不可恢复，不触发该流程。
+
 ### 3.2 会话
 
 - `session/new`：以 workspace 绝对路径创建会话。
@@ -157,13 +162,16 @@ Applications 软链接和首次运行说明放入 staging，再直接通过
 
 ```sh
 npm run build
+npm run test:run
 cd src-tauri
 cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
 Rust 单元测试覆盖 JSON-RPC 分类、permission 形状、CLI 版本、session
-路径、steering/command payload 和 MCP 状态归一化。
+路径、steering/command/reconnect payload 和 MCP 状态归一化。Vitest
+覆盖 ACP normalizer、重试策略和 session replay。GitHub Actions 在 macOS
+执行前端 build/test 以及 Rust fmt/test/clippy。
 
 ## 10. 路线图
 
@@ -178,13 +186,14 @@ Rust 单元测试覆盖 JSON-RPC 分类、permission 形状、CLI 版本、sessi
 - [x] Subagent activity、MCP status/OAuth 和配置热更新
 - [x] Markdown transcript 导出
 - [x] macOS `.app` 与无 Finder 依赖的 DMG 打包
+- [x] ACP 异常退出自动重连并恢复活跃 session
+- [x] 前端 state/normalizer 单元测试
+- [x] Rust reconnect payload 测试
+- [x] GitHub Actions build/test/clippy
 
 ### 下一阶段
 
-- [ ] ACP 异常退出自动重连并恢复活跃 session
-- [ ] 前端 state/normalizer 单元测试
-- [ ] Rust reconnect 生命周期测试
-- [ ] GitHub Actions build/test/clippy
+- [ ] ACP 子进程故障注入与端到端恢复测试
 - [ ] Context compaction、clear 和 Agent switch 状态 UI
 - [ ] Slash Command 参数补全
 - [ ] CSP 与 Tauri capability 收紧

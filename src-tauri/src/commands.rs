@@ -6,7 +6,7 @@ use serde_json::Value;
 use tauri::{AppHandle, State};
 use tokio::sync::Mutex;
 
-use crate::acp_client::{AcpClient, InitializeResult};
+use crate::acp_client::{emit_acp_status, AcpClient, InitializeResult};
 use crate::error::{AppError, AppResult};
 use crate::session_store::{self, ReplayMessage, SessionMeta};
 use crate::workspace_scanner::{self, WorkspaceManifest};
@@ -42,17 +42,19 @@ pub async fn acp_connect(
         });
     }
     *guard = None;
-    let (client, init) = AcpClient::spawn(app).await?;
+    let (client, init) = AcpClient::spawn(app.clone()).await?;
     *guard = Some(Arc::new(client));
+    emit_acp_status(&app, "connected", false, None);
     Ok(init)
 }
 
 #[tauri::command]
-pub async fn acp_disconnect(state: State<'_, AcpState>) -> AppResult<()> {
+pub async fn acp_disconnect(app: AppHandle, state: State<'_, AcpState>) -> AppResult<()> {
     let client = state.lock().await.take();
     if let Some(client) = client {
         client.shutdown().await;
     }
+    emit_acp_status(&app, "disconnected", false, None);
     Ok(())
 }
 
@@ -64,6 +66,80 @@ pub async fn acp_status(state: State<'_, AcpState>) -> AppResult<&'static str> {
     } else {
         "disconnected"
     })
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReconnectResult {
+    pub session: Option<Value>,
+    pub cli_version: String,
+    pub agent_capabilities: Value,
+    pub compatibility_warning: Option<String>,
+}
+
+/// Rebuild the ACP process after an unexpected exit and, when an active
+/// session is supplied, restore that session before reporting success.
+/// Holding AcpState across the operation serializes concurrent retries.
+#[tauri::command]
+pub async fn reconnect_acp(
+    app: AppHandle,
+    state: State<'_, AcpState>,
+    session_id: Option<String>,
+    cwd: Option<String>,
+    auto_approve: bool,
+) -> AppResult<ReconnectResult> {
+    emit_acp_status(&app, "reconnecting", true, None);
+
+    let result: AppResult<ReconnectResult> = async {
+        let load_params = reconnect_session_params(session_id.as_deref(), cwd.as_deref())?;
+        let mut guard = state.lock().await;
+        let client = if let Some(client) = guard.as_ref().filter(|client| client.is_alive()) {
+            client.clone()
+        } else {
+            *guard = None;
+            let (client, _) = AcpClient::spawn(app.clone()).await?;
+            let client = Arc::new(client);
+            *guard = Some(client.clone());
+            client
+        };
+
+        client.set_auto_approve(auto_approve);
+        let session = match load_params {
+            Some(params) => Some(client.request("session/load", params).await?),
+            None => None,
+        };
+
+        Ok(ReconnectResult {
+            session,
+            cli_version: client.cli_version().to_string(),
+            agent_capabilities: client.agent_capabilities().clone(),
+            compatibility_warning: client.compatibility_warning().map(str::to_string),
+        })
+    }
+    .await;
+
+    match &result {
+        Ok(_) => emit_acp_status(&app, "connected", false, None),
+        Err(error) => emit_acp_status(&app, "reconnect_failed", true, Some(error.to_string())),
+    }
+    result
+}
+
+fn reconnect_session_params(
+    session_id: Option<&str>,
+    cwd: Option<&str>,
+) -> AppResult<Option<Value>> {
+    match (session_id, cwd) {
+        (Some(session_id), Some(cwd)) => Ok(Some(serde_json::json!({
+            "sessionId": session_id,
+            "cwd": cwd,
+            "mcpServers": []
+        }))),
+        (None, None) => Ok(None),
+        _ => Err(AppError::SessionError {
+            message: "sessionId and cwd must both be provided when reconnecting a session".into(),
+        }),
+    }
 }
 
 #[tauri::command]
@@ -410,5 +486,20 @@ mod tests {
             command_params("session-1", "help", None)["command"]["args"],
             json!({})
         );
+    }
+
+    #[test]
+    fn reconnect_payload_requires_a_complete_session_target() {
+        assert_eq!(
+            reconnect_session_params(Some("session-1"), Some("/tmp/project")).unwrap(),
+            Some(json!({
+                "sessionId": "session-1",
+                "cwd": "/tmp/project",
+                "mcpServers": [],
+            }))
+        );
+        assert!(reconnect_session_params(None, None).unwrap().is_none());
+        assert!(reconnect_session_params(Some("session-1"), None).is_err());
+        assert!(reconnect_session_params(None, Some("/tmp/project")).is_err());
     }
 }

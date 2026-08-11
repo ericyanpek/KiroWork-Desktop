@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "check": "npm run test:run && npm run build",
     "preview": "vite preview",
     "tauri": "tauri",
     "bundle:mac": "tauri build --bundles app && bash scripts/repack-dmg.sh"
@@ -33,6 +36,7 @@
     "shadcn": "^4.6.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~5.8.3",
-    "vite": "^7.0.4"
+    "vite": "^7.0.4",
+    "vitest": "^3.2.4"
   }
 }
