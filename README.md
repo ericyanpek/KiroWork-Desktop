@@ -1,5 +1,7 @@
 # ⚡ KiroWork Desktop
 
+<p align="right"><a href="./README_EN.md">English</a> | <strong>简体中文</strong></p>
+
 > **Kiro CLI 的 macOS 桌面客户端** — 将本机 `kiro-cli` 的 Agent 能力接入一个无需持续操作终端的对话界面。应用基于 Tauri 2 桥接 ACP 协议，前端使用 React 19 + TypeScript，后端使用 Rust + Tokio。
 
 ![platform](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
@@ -13,9 +15,12 @@
 
 | 特性 | 说明 |
 |---|---|
+| 🪶 **轻量原生架构** | 基于 Tauri 和 macOS 系统 WebView，不捆绑浏览器引擎、模型运行时或 Kiro CLI。 |
 | 🗂 **多会话管理** | 搜索、恢复和删除本地持久化会话；通过 session JSONL 重建历史消息。 |
 | 💬 **流式 Agent 对话** | 实时展示回复、reasoning、工具调用状态、文件活动和编辑 diff。 |
 | 🔄 **自动恢复连接** | Kiro CLI ACP 进程异常退出后自动重连，并恢复当前 workspace 和活跃会话。 |
+| 🧭 **CLI 兼容与能力发现** | 校验 Kiro CLI 版本，并根据 CLI 实际返回动态展示模型、模式、命令和配置。 |
+| 🛡 **本地安全边界** | 凭据由 Kiro CLI 管理；前端不保存 Token；Auto 权限不会写入永久策略。 |
 | 🔐 **工具权限控制** | 支持 Ask 逐次确认与 Auto 自动批准；权限状态仅在当前应用运行期间生效。 |
 | 🤖 **模型与 Agent 热切换** | 在当前会话内切换模型、Agent 模式和 reasoning effort。 |
 | ⌨️ **运行中控制** | 支持动态 Slash Command、Queue Steering、独立 Stop 和历史 prompt 复用。 |
