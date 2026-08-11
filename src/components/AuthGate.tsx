@@ -16,6 +16,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<GateState>({ kind: "checking" });
   const setAcpStatus = useApp((s) => s.setAcpStatus);
   const setAuth = useApp((s) => s.setAuth);
+  const setCliInfo = useApp((s) => s.setCliInfo);
 
   const runCheck = useCallback(async () => {
     setState({ kind: "checking" });
@@ -23,6 +24,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     try {
       const r = await checkAuth();
       if (r.status === "ok") {
+        setCliInfo(
+          r.cliVersion,
+          r.agentCapabilities,
+          r.compatibilityWarning,
+        );
         setState({ kind: "ok" });
         setAuth("ok");
         setAcpStatus("connected");
@@ -37,7 +43,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const msg = (e as { message?: string })?.message ?? String(e);
       setState({ kind: "error", message: msg });
     }
-  }, [setAcpStatus, setAuth]);
+  }, [setAcpStatus, setAuth, setCliInfo]);
 
   useEffect(() => {
     runCheck();

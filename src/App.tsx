@@ -9,6 +9,7 @@ import { Toolbar } from "./components/Toolbar";
 import { Sidebar } from "./components/Sidebar";
 import { FilePanel } from "./components/FilePanel";
 import { WorkspacePicker } from "./components/WorkspacePicker";
+import { PermissionPrompt } from "./components/PermissionPrompt";
 
 function MainUI() {
   useAcp();
@@ -34,6 +35,7 @@ function MainUI() {
 
   return (
     <main className="flex h-full flex-col kiro-ambient">
+      <PermissionPrompt />
       {/* Toolbar — fixed to viewport so its position never shifts regardless of
           what is added above/below in the component tree. */}
       <div

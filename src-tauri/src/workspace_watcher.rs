@@ -29,28 +29,30 @@ pub fn start(app: AppHandle, workspace_root: PathBuf) {
     let app_clone = app.clone();
     let root_clone = workspace_root.clone();
 
-    let watcher_result = notify::recommended_watcher(
-        move |res: NResult<Event>| {
-            if res.is_err() {
-                return;
+    let watcher_result = notify::recommended_watcher(move |res: NResult<Event>| {
+        if res.is_err() {
+            return;
+        }
+        // Re-scan and emit. Errors are logged and swallowed.
+        match workspace_scanner::scan(&root_clone) {
+            Ok(manifest) => {
+                let _ = app_clone.emit("workspace-manifest-updated", manifest);
             }
-            // Re-scan and emit. Errors are logged and swallowed.
-            match workspace_scanner::scan(&root_clone) {
-                Ok(manifest) => {
-                    let _ = app_clone.emit("workspace-manifest-updated", manifest);
-                }
-                Err(e) => {
-                    tracing::warn!("workspace rescan failed: {e}");
-                }
+            Err(e) => {
+                tracing::warn!("workspace rescan failed: {e}");
             }
-        },
-    );
+        }
+    });
 
     match watcher_result {
         Ok(mut watcher) => {
             // Watch `.kiro/` if it exists; fall back to workspace root so we
             // catch the moment `.kiro/` is first created.
-            let watch_target = if kiro_dir.is_dir() { &kiro_dir } else { &workspace_root };
+            let watch_target = if kiro_dir.is_dir() {
+                &kiro_dir
+            } else {
+                &workspace_root
+            };
             if let Err(e) = watcher.watch(watch_target, RecursiveMode::Recursive) {
                 tracing::warn!("failed to watch {}: {e}", watch_target.display());
                 return;

@@ -6,10 +6,14 @@ import type {
   InitializeResult,
   KiroMetadataEvent,
   LoadSessionResult,
+  McpStatusEvent,
+  PermissionRequestEvent,
   PromptResult,
+  SlashCommand,
   SessionMeta,
   SessionNewResult,
   SessionUpdateEvent,
+  SubagentView,
   WorkspaceManifest,
 } from "../types/acp";
 
@@ -40,6 +44,36 @@ export function sessionPrompt(
 
 export function sessionCancel(sessionId: string): Promise<void> {
   return invoke<void>("session_cancel", { sessionId });
+}
+
+export function sessionSteer(
+  sessionId: string,
+  message: string,
+): Promise<unknown> {
+  return invoke<unknown>("session_steer", { sessionId, message });
+}
+
+export function executeCommand(
+  sessionId: string,
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<unknown> {
+  return invoke<unknown>("execute_command", {
+    sessionId,
+    command,
+    args: args ?? null,
+  });
+}
+
+export function setPermissionMode(autoApprove: boolean): Promise<void> {
+  return invoke<void>("set_permission_mode", { autoApprove });
+}
+
+export function respondPermission(
+  requestId: string | number,
+  optionId: string | null,
+): Promise<void> {
+  return invoke<void>("respond_permission", { requestId, optionId });
 }
 
 export function setModel(sessionId: string, modelId: string): Promise<unknown> {
@@ -96,6 +130,10 @@ export async function readFileBytes(path: string): Promise<Uint8Array> {
   return new Uint8Array(arr);
 }
 
+export function exportTranscript(path: string, content: string): Promise<void> {
+  return invoke<void>("export_transcript", { path, content });
+}
+
 export function onSessionUpdate(
   cb: (ev: SessionUpdateEvent) => void,
 ): Promise<UnlistenFn> {
@@ -111,7 +149,13 @@ export function onAcpStatus(
 }
 
 export type AuthStatusPayload =
-  | { status: "ok"; user?: string | null }
+  | {
+      status: "ok";
+      user?: string | null;
+      cliVersion: string;
+      agentCapabilities: unknown;
+      compatibilityWarning?: string | null;
+    }
   | { status: "not_installed"; message: string }
   | { status: "required"; message: string };
 
@@ -130,15 +174,33 @@ export function onKiroMetadata(
 }
 
 export function onKiroCommands(
-  cb: (payload: unknown) => void,
+  cb: (payload: SlashCommand[] | unknown) => void,
 ): Promise<UnlistenFn> {
   return listen<unknown>("kiro-commands", (e) => cb(e.payload));
 }
 
 export function onKiroSubagents(
-  cb: (payload: unknown) => void,
+  cb: (payload: SubagentView[] | unknown) => void,
 ): Promise<UnlistenFn> {
   return listen<unknown>("kiro-subagents", (e) => cb(e.payload));
+}
+
+export function onKiroSubagentActivity(
+  cb: (payload: unknown) => void,
+): Promise<UnlistenFn> {
+  return listen<unknown>("kiro-subagent-activity", (e) => cb(e.payload));
+}
+
+export function onMcpStatus(
+  cb: (payload: McpStatusEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<McpStatusEvent>("mcp-status", (e) => cb(e.payload));
+}
+
+export function onPermissionRequest(
+  cb: (payload: PermissionRequestEvent) => void,
+): Promise<UnlistenFn> {
+  return listen<PermissionRequestEvent>("permission-request", (e) => cb(e.payload));
 }
 
 /** Fires whenever Kiro reads or writes a file (extracted by Rust from tool_call events). */

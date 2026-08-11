@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect, type ClipboardEvent } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../stores/app-store";
-import { readFileBytes, sessionCancel, sessionPrompt } from "../lib/tauri-bridge";
-import type { ContentBlock } from "../types/acp";
+import {
+  executeCommand,
+  readFileBytes,
+  sessionCancel,
+  sessionPrompt,
+  sessionSteer,
+} from "../lib/tauri-bridge";
+import type { AppError, ContentBlock } from "../types/acp";
 
 type Attachment = {
   id: string;
@@ -76,6 +82,29 @@ function PlusIcon({ className = "w-4 h-4" }: { className?: string }) {
   );
 }
 
+function parseSlashCommand(text: string): {
+  command: string;
+  args?: Record<string, unknown>;
+} {
+  const [head, ...rest] = text.trim().split(/\s+/);
+  const value = rest.join(" ").trim();
+  return {
+    command: head.replace(/^\//, ""),
+    args: value ? { value } : undefined,
+  };
+}
+
+function commandResultText(result: unknown): string {
+  if (!result || typeof result !== "object") return "";
+  const value = result as Record<string, unknown>;
+  if (typeof value.text === "string") return value.text;
+  if (typeof value.message === "string") return value.message;
+  if (value.data && typeof value.data === "object") {
+    return `\`\`\`json\n${JSON.stringify(value.data, null, 2)}\n\`\`\``;
+  }
+  return "";
+}
+
 export function InputBar({ initialText, onInitialTextConsumed }: {
   initialText?: string | null;
   onInitialTextConsumed?: () => void;
@@ -83,6 +112,7 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
   const [text, setText] = useState("");
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [attaching, setAttaching] = useState(false);
+  const [commandIndex, setCommandIndex] = useState(0);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -103,19 +133,84 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
   const startTurn = useApp((s) => s.startTurn);
   const endTurn = useApp((s) => s.endTurn);
   const setError = useApp((s) => s.setError);
+  const addSteeringMessage = useApp((s) => s.addSteeringMessage);
+  const appendChunk = useApp((s) => s.appendChunk);
+  const availableCommands = useApp((s) => s.availableCommands);
+  const steeringStatus = useApp((s) => s.steeringStatus);
+  const setSteeringStatus = useApp((s) => s.setSteeringStatus);
 
   useEffect(() => {
     if (!initialText) taRef.current?.focus();
   }, []);
 
+  const commandQuery = text.startsWith("/")
+    ? text.slice(1).split(/\s+/, 1)[0].toLowerCase()
+    : "";
+  const commandMatches = text.startsWith("/")
+    ? availableCommands
+        .filter((command) => command.name.toLowerCase().includes(commandQuery))
+        .slice(0, 8)
+    : [];
+  const commandMenuOpen =
+    commandMatches.length > 0 && !text.slice(1).includes(" ");
+
+  useEffect(() => {
+    setCommandIndex(0);
+  }, [commandQuery]);
+
   function canSend(): boolean {
-    if (isStreaming || !sessionId) return false;
+    if (!sessionId) return false;
+    if (isStreaming) return text.trim().length > 0;
     return text.trim().length > 0 || attachments.length > 0;
+  }
+
+  function chooseCommand(index: number) {
+    const command = commandMatches[index];
+    if (!command) return;
+    setText(`/${command.name} `);
+    requestAnimationFrame(() => taRef.current?.focus());
   }
 
   async function submit() {
     if (!canSend()) return;
     const trimmed = text.trim();
+    if (isStreaming) {
+      setText("");
+      addSteeringMessage(trimmed);
+      try {
+        await sessionSteer(sessionId!, trimmed);
+      } catch (e) {
+        setSteeringStatus("idle");
+        setError(e as AppError);
+      }
+      return;
+    }
+
+    if (trimmed.startsWith("/") && attachments.length === 0) {
+      const parsed = parseSlashCommand(trimmed);
+      setText("");
+      addUserMessage(trimmed);
+      startTurn();
+      try {
+        const result = await executeCommand(
+          sessionId!,
+          parsed.command,
+          parsed.args,
+        );
+        const resultText = commandResultText(result);
+        const messages = useApp.getState().messages;
+        const last = messages[messages.length - 1];
+        if (resultText && last?.role === "assistant" && !last.text) {
+          appendChunk(resultText);
+        }
+      } catch (e) {
+        setError(e as AppError);
+      } finally {
+        endTurn();
+      }
+      return;
+    }
+
     const prompt: ContentBlock[] = [
       ...attachments.map((a) => ({
         type: "image" as const,
@@ -138,9 +233,10 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
     try {
       await sessionPrompt(sessionId!, prompt);
     } catch (e) {
-      setError(e as never);
+      setError(e as AppError);
     } finally {
       endTurn();
+      setSteeringStatus("idle");
     }
   }
 
@@ -148,8 +244,9 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
     if (!sessionId) return;
     try {
       await sessionCancel(sessionId);
+      setSteeringStatus("idle");
     } catch (e) {
-      setError(e as never);
+      setError(e as AppError);
     }
   }
 
@@ -223,6 +320,31 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
   return (
     <div className="relative px-4 pt-6 pb-4 bg-gradient-to-t from-bg via-bg/92 to-transparent pointer-events-none">
       <div className="mx-auto max-w-3xl pointer-events-auto">
+        {commandMenuOpen && (
+          <div className="mb-2 overflow-hidden rounded-lg border border-border bg-bg-elevated shadow-xl">
+            {commandMatches.map((command, index) => (
+              <button
+                key={command.name}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => chooseCommand(index)}
+                className={`flex w-full items-start gap-3 px-3 py-2 text-left ${
+                  index === commandIndex
+                    ? "bg-accent/10 text-fg"
+                    : "text-fg-muted hover:bg-bg-muted"
+                }`}
+              >
+                <span className="font-mono text-xs text-accent">
+                  /{command.name}
+                </span>
+                <span className="min-w-0 flex-1 truncate text-[11px] text-fg-subtle">
+                  {command.description}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Attachment previews */}
         {attachments.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-2.5 px-1">
@@ -258,7 +380,7 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
           {/* Attach button — sits left, vertically centered */}
           <button
             onClick={pickFiles}
-            disabled={!sessionId || attaching}
+            disabled={!sessionId || attaching || isStreaming}
             title="Attach image"
             aria-label="Attach image"
             className="self-center flex-shrink-0 ml-1.5 w-8 h-8 flex items-center justify-center rounded-full text-fg-subtle/70 hover:text-fg hover:bg-bg-muted/70 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
@@ -276,6 +398,42 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
             onCompositionEnd={() => { compositionEndedAt.current = Date.now(); }}
             onKeyDown={(e) => {
               if (Date.now() - compositionEndedAt.current < 50) return;
+              if (commandMenuOpen && e.key === "ArrowDown") {
+                e.preventDefault();
+                setCommandIndex((index) =>
+                  Math.min(index + 1, commandMatches.length - 1),
+                );
+                return;
+              }
+              if (commandMenuOpen && e.key === "ArrowUp") {
+                e.preventDefault();
+                setCommandIndex((index) => Math.max(index - 1, 0));
+                return;
+              }
+              if (commandMenuOpen && e.key === "Tab") {
+                e.preventDefault();
+                chooseCommand(commandIndex);
+                return;
+              }
+              if (commandMenuOpen && e.key === "Enter") {
+                const selected = commandMatches[commandIndex];
+                if (
+                  selected &&
+                  commandQuery === selected.name.toLowerCase()
+                ) {
+                  e.preventDefault();
+                  submit();
+                } else {
+                  e.preventDefault();
+                  chooseCommand(commandIndex);
+                }
+                return;
+              }
+              if (commandMenuOpen && e.key === "Escape") {
+                e.preventDefault();
+                setText("");
+                return;
+              }
               if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                 e.preventDefault();
                 submit();
@@ -284,7 +442,13 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
                 submit();
               }
             }}
-            placeholder={sessionId ? "Ask Kiro…" : "Open a folder to start"}
+            placeholder={
+              !sessionId
+                ? "Open a folder to start"
+                : isStreaming
+                  ? "Steer the current turn…"
+                  : "Ask Kiro…"
+            }
             rows={2}
             disabled={!sessionId}
             className="flex-1 resize-none bg-transparent px-2 py-2.5 text-[13px] text-fg placeholder:text-fg-subtle/50 focus:outline-none leading-relaxed"
@@ -293,15 +457,30 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
           {/* Send / Stop — sits right, vertically centered */}
           <div className="self-center flex-shrink-0 mr-2">
             {isStreaming ? (
-              <button
-                onClick={stop}
-                title="Stop generation"
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-status-error/15 text-status-error hover:bg-status-error/25 transition-colors duration-150"
-              >
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
-                  <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-1">
+                {text.trim() && (
+                  <button
+                    onClick={submit}
+                    title="Steer current turn"
+                    aria-label="Steer current turn"
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-accent text-accent-foreground hover:bg-accent-strong transition-colors duration-150"
+                  >
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M3 8h9M9 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                )}
+                <button
+                  onClick={stop}
+                  title="Stop generation"
+                  aria-label="Stop generation"
+                  className="w-7 h-7 flex items-center justify-center rounded-full bg-status-error/15 text-status-error hover:bg-status-error/25 transition-colors duration-150"
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor">
+                    <rect x="1.5" y="1.5" width="7" height="7" rx="1.5" />
+                  </svg>
+                </button>
+              </div>
             ) : (
               <button
                 onClick={submit}
@@ -317,7 +496,13 @@ export function InputBar({ initialText, onInitialTextConsumed }: {
         </div>
 
         <div className="text-[11px] text-fg-subtle/50 mt-1.5 px-1 select-none">
-          Enter to send · Shift+Enter for newline · paste or attach images
+          {isStreaming
+            ? steeringStatus === "consumed"
+              ? "Steering applied"
+              : steeringStatus === "queued"
+                ? "Steering queued"
+                : "Enter to steer the current turn"
+            : "Enter to send · type / for commands · paste or attach images"}
         </div>
       </div>
     </div>

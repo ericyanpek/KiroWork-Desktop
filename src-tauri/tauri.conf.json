@@ -1,6 +1,6 @@
 {
   "productName": "KiroWork Desktop",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "identifier": "com.kirowork.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -28,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

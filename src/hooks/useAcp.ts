@@ -1,6 +1,21 @@
 import { useEffect, useRef } from "react";
-import { onAcpStatus, onFileActivity, onKiroMetadata, onSessionUpdate } from "../lib/tauri-bridge";
+import {
+  onAcpStatus,
+  onFileActivity,
+  onKiroMetadata,
+  onKiroCommands,
+  onKiroSubagentActivity,
+  onKiroSubagents,
+  onMcpStatus,
+  onPermissionRequest,
+  onSessionUpdate,
+} from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
+import type {
+  ConfigOption,
+  SlashCommand,
+  SubagentView,
+} from "../types/acp";
 
 /**
  * Wires Tauri events into the zustand store. Mount once, high in the tree.
@@ -29,7 +44,22 @@ import { useApp } from "../stores/app-store";
 // and spin up duplicate listeners.
 const g = globalThis as Record<string, unknown>;
 if (!g.__kiroAcpUnsub) {
-  g.__kiroAcpUnsub = { subscribed: false, update: null, status: null, metadata: null, fileActivity: null };
+  g.__kiroAcpUnsub = {
+    subscribed: false,
+    update: null,
+    status: null,
+    metadata: null,
+    fileActivity: null,
+    permission: null,
+    commands: null,
+    subagents: null,
+    subagentActivity: null,
+    mcpStatus: null,
+  };
+}
+const rawListenerState = g.__kiroAcpUnsub as Record<string, unknown>;
+for (const key of ["commands", "subagents", "subagentActivity", "mcpStatus"]) {
+  if (!(key in rawListenerState)) rawListenerState[key] = null;
 }
 const _state = g.__kiroAcpUnsub as {
   subscribed: boolean;
@@ -37,6 +67,11 @@ const _state = g.__kiroAcpUnsub as {
   status: Promise<() => void> | null;
   metadata: Promise<() => void> | null;
   fileActivity: Promise<() => void> | null;
+  permission: Promise<() => void> | null;
+  commands: Promise<() => void> | null;
+  subagents: Promise<() => void> | null;
+  subagentActivity: Promise<() => void> | null;
+  mcpStatus: Promise<() => void> | null;
 };
 
 // Module-level chunk buffer — survives React re-renders and the _state latch.
@@ -44,8 +79,10 @@ const _state = g.__kiroAcpUnsub as {
 // window is not in the foreground or has no pending paint, which would silently
 // drop chunks.
 let _pendingChunk = "";
+let _pendingThinking = "";
 let _flushTimer: ReturnType<typeof setTimeout> | null = null;
 let _flushFn: ((text: string) => void) | null = null;
+let _thinkingFlushFn: ((text: string) => void) | null = null;
 
 function _scheduleFlush() {
   if (_flushTimer !== null) return;
@@ -55,19 +92,86 @@ function _scheduleFlush() {
       _flushFn(_pendingChunk);
       _pendingChunk = "";
     }
+    if (_pendingThinking && _thinkingFlushFn) {
+      _thinkingFlushFn(_pendingThinking);
+      _pendingThinking = "";
+    }
   }, 0);
+}
+
+function normalizeCommands(payload: unknown): SlashCommand[] {
+  const object =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : null;
+  const raw = Array.isArray(payload)
+    ? payload
+    : object?.commands ?? object?.availableCommands ?? [];
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (typeof entry === "string") {
+      return [{ name: entry.replace(/^\//, ""), description: "" }];
+    }
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    const name = String(item.name ?? item.command ?? "").replace(/^\//, "");
+    if (!name) return [];
+    return [{
+      name,
+      description: String(item.description ?? item.help ?? ""),
+      inputHint: item.inputHint ? String(item.inputHint) : undefined,
+    }];
+  });
+}
+
+function normalizeSubagents(payload: unknown): SubagentView[] {
+  const object =
+    payload && typeof payload === "object"
+      ? (payload as Record<string, unknown>)
+      : null;
+  const raw = Array.isArray(payload) ? payload : object?.subagents ?? [];
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    const id = String(item.sessionId ?? item.id ?? "");
+    if (!id) return [];
+    const rawStatus = item.status;
+    const status =
+      typeof rawStatus === "string"
+        ? rawStatus
+        : rawStatus && typeof rawStatus === "object"
+          ? String((rawStatus as Record<string, unknown>).type ?? "working")
+          : "working";
+    return [{
+      id,
+      role: String(item.role ?? item.name ?? item.agentName ?? "subagent"),
+      status,
+      title: item.title ? String(item.title) : undefined,
+    }];
+  });
 }
 
 export function useAcp() {
   const appendChunk = useApp((s) => s.appendChunk);
+  const appendThinking = useApp((s) => s.appendThinking);
   const addOrUpdateToolCall = useApp((s) => s.addOrUpdateToolCall);
   const setAcpStatus = useApp((s) => s.setAcpStatus);
   const applyMetadata = useApp((s) => s.applyMetadata);
   const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
   const addFileActivityToToolCall = useApp((s) => s.addFileActivityToToolCall);
+  const enqueuePermission = useApp((s) => s.enqueuePermission);
+  const clearPermissions = useApp((s) => s.clearPermissions);
+  const setAvailableCommands = useApp((s) => s.setAvailableCommands);
+  const setConfigOptions = useApp((s) => s.setConfigOptions);
+  const setSubagents = useApp((s) => s.setSubagents);
+  const updateSubagentActivity = useApp((s) => s.updateSubagentActivity);
+  const setMcpStatus = useApp((s) => s.setMcpStatus);
+  const setSteeringStatus = useApp((s) => s.setSteeringStatus);
 
   // Keep module-level flush fn pointing at latest appendChunk.
   useEffect(() => { _flushFn = appendChunk; }, [appendChunk]);
+  useEffect(() => { _thinkingFlushFn = appendThinking; }, [appendThinking]);
 
   // Latest-value ref so updates for the active session aren't dropped without
   // putting sessionId in effect deps (which would re-subscribe on every change).
@@ -89,15 +193,28 @@ export function useAcp() {
       if (active && incoming !== active) return;
 
       switch (update.sessionUpdate) {
-        case "agent_message_chunk": {
-          const text = (update as { content: { text: string } }).content?.text ?? "";
+        case "agent_message_chunk":
+        case "agent_thought_chunk": {
+          const content = (update as {
+            content?: { type?: string; text?: string };
+          }).content;
+          const text = content?.text ?? "";
           if (text) {
-            _pendingChunk += text;
+            const thinking =
+              update.sessionUpdate === "agent_thought_chunk" ||
+              content?.type === "thinking" ||
+              content?.type === "reasoning";
+            if (thinking) {
+              _pendingThinking += text;
+            } else {
+              _pendingChunk += text;
+            }
             _scheduleFlush();
           }
           break;
         }
-        case "tool_call": {
+        case "tool_call":
+        case "tool_call_chunk": {
           const tc = update as {
             toolCallId: string;
             title: string;
@@ -132,6 +249,31 @@ export function useAcp() {
           });
           break;
         }
+        case "available_commands_update": {
+          const value = update as Record<string, unknown>;
+          setAvailableCommands(
+            normalizeCommands(value.availableCommands ?? value.commands ?? value),
+          );
+          break;
+        }
+        case "config_option_update": {
+          const value = update as { configOptions?: ConfigOption[] };
+          if (Array.isArray(value.configOptions)) {
+            setConfigOptions(value.configOptions);
+          }
+          break;
+        }
+        case "steering_queued":
+        case "AgentExecutionUserMessageQueued":
+          setSteeringStatus("queued");
+          break;
+        case "steering_consumed":
+        case "AgentExecutionSteeringInjected":
+          setSteeringStatus("consumed");
+          break;
+        case "steering_cleared":
+          setSteeringStatus("idle");
+          break;
         default:
           // eslint-disable-next-line no-console
           console.debug("[acp] unhandled session/update kind", update.sessionUpdate, update);
@@ -149,12 +291,67 @@ export function useAcp() {
       }
     });
 
-    _state.status = onAcpStatus((s) => setAcpStatus(s));
+    _state.status = onAcpStatus((s) => {
+      setAcpStatus(s);
+      if (s === "disconnected") clearPermissions();
+    });
     _state.metadata = onKiroMetadata((e) => applyMetadata(e));
+    _state.permission = onPermissionRequest(enqueuePermission);
+    _state.commands = onKiroCommands((payload) => {
+      setAvailableCommands(normalizeCommands(payload));
+    });
+    _state.subagents = onKiroSubagents((payload) => {
+      setSubagents(normalizeSubagents(payload));
+    });
+    _state.subagentActivity = onKiroSubagentActivity((payload) => {
+      if (!payload || typeof payload !== "object") return;
+      const params = payload as Record<string, unknown>;
+      const id = String(params.sessionId ?? "");
+      const update =
+        params.update && typeof params.update === "object"
+          ? (params.update as Record<string, unknown>)
+          : {};
+      if (!id) return;
+      const content =
+        update.content && typeof update.content === "object"
+          ? (update.content as Record<string, unknown>)
+          : {};
+      const activity: Partial<
+        Pick<SubagentView, "activity" | "status" | "title">
+      > = {};
+      const activityText = content.text ?? update.text;
+      if (activityText !== undefined) {
+        activity.activity = String(activityText);
+      }
+      if (update.title !== undefined) {
+        activity.title = String(update.title);
+      }
+      if (update.status !== undefined) {
+        activity.status = String(update.status);
+      }
+      updateSubagentActivity(id, activity);
+    });
+    _state.mcpStatus = onMcpStatus(setMcpStatus);
 
     // Intentionally no cleanup: subscriptions live for the app's lifetime.
     // The `subscribed` latch makes StrictMode's double-invoke a no-op.
-  }, [appendChunk, addOrUpdateToolCall, setAcpStatus, applyMetadata, setPreviewFilePath, addFileActivityToToolCall]);
+  }, [
+    appendChunk,
+    appendThinking,
+    addOrUpdateToolCall,
+    setAcpStatus,
+    applyMetadata,
+    setPreviewFilePath,
+    addFileActivityToToolCall,
+    enqueuePermission,
+    clearPermissions,
+    setAvailableCommands,
+    setConfigOptions,
+    setSubagents,
+    updateSubagentActivity,
+    setMcpStatus,
+    setSteeringStatus,
+  ]);
 }
 
 /** Test / teardown helper — not used by the app itself. */
@@ -164,8 +361,18 @@ export async function _unsubscribeAcpForTests() {
   if (_state.status) (await _state.status)();
   if (_state.metadata) (await _state.metadata)();
   if (_state.fileActivity) (await _state.fileActivity)();
+  if (_state.permission) (await _state.permission)();
+  if (_state.commands) (await _state.commands)();
+  if (_state.subagents) (await _state.subagents)();
+  if (_state.subagentActivity) (await _state.subagentActivity)();
+  if (_state.mcpStatus) (await _state.mcpStatus)();
   _state.update = null;
   _state.status = null;
   _state.metadata = null;
   _state.fileActivity = null;
+  _state.permission = null;
+  _state.commands = null;
+  _state.subagents = null;
+  _state.subagentActivity = null;
+  _state.mcpStatus = null;
 }

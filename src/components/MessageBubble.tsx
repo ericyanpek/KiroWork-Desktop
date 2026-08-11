@@ -127,7 +127,13 @@ function makeMarkdownComponents(
   };
 }
 
-export const MessageBubble = memo(function MessageBubble({ message }: { message: Message }) {
+export const MessageBubble = memo(function MessageBubble({
+  message,
+  onReusePrompt,
+}: {
+  message: Message;
+  onReusePrompt?: () => void;
+}) {
   const isUser = message.role === "user";
   const setPreviewFilePath = useApp((s) => s.setPreviewFilePath);
   const setFilePanelOpen = useApp((s) => s.setFilePanelOpen);
@@ -151,6 +157,16 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
             <ToolCallCard key={tc.toolCallId} call={tc} />
           ))}
         </div>
+      )}
+      {!isUser && message.thinking && (
+        <details className="w-full max-w-3xl border-l-2 border-border pl-4 text-[12px] text-fg-subtle">
+          <summary className="cursor-pointer select-none py-1 font-medium hover:text-fg-muted">
+            Thinking
+          </summary>
+          <div className="whitespace-pre-wrap break-words pb-2 pr-3 leading-relaxed">
+            {message.thinking}
+          </div>
+        </details>
       )}
       <div
         className={`leading-relaxed text-[13px] ${isUser ? "max-w-[65%]" : "w-full max-w-3xl"} ${bubbleClass}`}
@@ -176,7 +192,20 @@ export const MessageBubble = memo(function MessageBubble({ message }: { message:
       </div>
       {/* Copy button — visible on hover, hidden while streaming */}
       {!message.streaming && message.text && (
-        <div className={`opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 ${isUser ? "self-end" : "self-start pl-4"}`}>
+        <div className={`flex items-center opacity-0 group-hover/msg:opacity-100 transition-opacity duration-150 ${isUser ? "self-end" : "self-start pl-4"}`}>
+          {onReusePrompt && (
+            <button
+              type="button"
+              onClick={onReusePrompt}
+              title="Reuse prompt"
+              aria-label="Reuse prompt"
+              className="flex items-center justify-center rounded p-1 text-fg-subtle/50 hover:bg-bg-muted/60 hover:text-fg-subtle"
+            >
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 13h3l7-7-3-3-7 7v3zM9 4l3 3" />
+              </svg>
+            </button>
+          )}
           <CopyButton text={message.text} />
         </div>
       )}

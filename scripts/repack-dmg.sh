@@ -1,5 +1,11 @@
 #!/bin/bash
-# Repack the Tauri-generated DMG with a README.
+# Package the Tauri-generated app bundle into a DMG with a README.
+#
+# Tauri's create-dmg path uses Finder AppleScript for icon positioning. On
+# newer macOS releases Finder can keep the temporary image busy while the
+# bundled script attempts to detach it, causing the build to fail. This script
+# deliberately uses hdiutil's srcfolder path, which needs no Finder automation
+# or temporary mounted image.
 #
 # The app is ad-hoc signed (tauri.conf.json -> bundle.macOS.signingIdentity: "-"),
 # so macOS shows the "unidentified developer" dialog on first launch instead
@@ -69,7 +75,7 @@ and run:
 then try right-click -> Open again.
 EOF
 
-# Rebuild a read-only DMG. Overwrites the Tauri-produced one in-place.
+# Build the final read-only DMG.
 echo "Creating DMG at $OUTPUT_DMG"
 rm -f "$OUTPUT_DMG"
 hdiutil create \
@@ -82,6 +88,6 @@ hdiutil create \
   "$OUTPUT_DMG" >/dev/null
 
 echo ""
-echo "✓ Repacked DMG:"
+echo "Packaged DMG:"
 du -sh "$OUTPUT_DMG"
 echo "  $OUTPUT_DMG"

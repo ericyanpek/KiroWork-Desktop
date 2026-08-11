@@ -36,18 +36,24 @@ pub type AppResult<T> = Result<T, AppError>;
 
 impl From<std::io::Error> for AppError {
     fn from(e: std::io::Error) -> Self {
-        AppError::Unknown { message: e.to_string() }
+        AppError::Unknown {
+            message: e.to_string(),
+        }
     }
 }
 
 impl From<serde_json::Error> for AppError {
     fn from(e: serde_json::Error) -> Self {
-        AppError::Unknown { message: e.to_string() }
+        AppError::Unknown {
+            message: e.to_string(),
+        }
     }
 }
 
 impl From<anyhow::Error> for AppError {
     fn from(e: anyhow::Error) -> Self {
-        AppError::Unknown { message: e.to_string() }
+        AppError::Unknown {
+            message: e.to_string(),
+        }
     }
 }

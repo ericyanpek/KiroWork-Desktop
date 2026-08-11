@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { deleteSession, getSessionTitle } from "../lib/tauri-bridge";
 import { useApp } from "../stores/app-store";
 import {
@@ -11,9 +12,11 @@ import { useWorkspaceScan } from "../hooks/useWorkspaceScan";
 import { CollapsibleSection } from "./CollapsibleSection";
 import type {
   McpServerEntry,
+  McpStatusEvent,
   SessionMeta,
   SkillEntry,
   SteeringEntry,
+  SubagentView,
 } from "../types/acp";
 
 function basename(p: string): string {
@@ -118,15 +121,93 @@ function SkillRow({ skill }: { skill: SkillEntry }) {
   );
 }
 
-function McpRow({ server }: { server: McpServerEntry }) {
+const MCP_STATUS_STYLE: Record<string, string> = {
+  connecting: "bg-status-warning",
+  connected: "bg-status-success",
+  authorization_required: "bg-accent",
+  error: "bg-status-error",
+};
+
+function McpRow({
+  server,
+  runtime,
+}: {
+  server: McpServerEntry;
+  runtime?: McpStatusEvent;
+}) {
+  async function authorize() {
+    if (!runtime?.oauthUrl) return;
+    try {
+      const url = new URL(runtime.oauthUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") return;
+      await openExternal(url.toString());
+    } catch {
+      // Ignore malformed URLs received from an extension notification.
+    }
+  }
+
   return (
     <li className={`px-3 py-1.5 ${server.disabled ? "opacity-50" : ""}`}>
-      <div className="text-xs font-medium text-fg truncate">{server.name}</div>
-      <div className="text-[11px] text-fg-subtle font-mono truncate">
-        {server.command}
-        {server.args.length > 0 && ` ${server.args[0]}`}
-        {server.disabled && " (disabled)"}
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+            runtime
+              ? MCP_STATUS_STYLE[runtime.status] ?? "bg-fg-subtle"
+              : "bg-fg-subtle/40"
+          }`}
+          title={runtime?.status ?? "Configured"}
+        />
+        <div className="min-w-0 flex-1 text-xs font-medium text-fg truncate">
+          {server.name}
+        </div>
+        {runtime?.status === "authorization_required" && runtime.oauthUrl && (
+          <button
+            type="button"
+            onClick={authorize}
+            className="text-[10px] font-medium text-accent hover:text-accent-strong"
+          >
+            Authorize
+          </button>
+        )}
       </div>
+      {(server.command || server.disabled) && (
+        <div className="text-[11px] text-fg-subtle font-mono truncate">
+          {server.command}
+          {server.args.length > 0 && ` ${server.args[0]}`}
+          {server.disabled && " (disabled)"}
+        </div>
+      )}
+      {runtime?.message && (
+        <div className="mt-0.5 line-clamp-2 text-[10px] text-status-error">
+          {runtime.message}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function SubagentRow({ subagent }: { subagent: SubagentView }) {
+  const terminal = ["completed", "done", "failed", "cancelled"].includes(
+    subagent.status.toLowerCase(),
+  );
+  return (
+    <li className="px-3 py-1.5">
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+            terminal ? "bg-fg-subtle/50" : "bg-status-success animate-pulse"
+          }`}
+        />
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-fg">
+          {subagent.title ?? subagent.role}
+        </span>
+        <span className="text-[10px] text-fg-subtle">{subagent.status}</span>
+      </div>
+      {subagent.activity && (
+        <div className="mt-0.5 line-clamp-2 text-[10px] text-fg-subtle">
+          {subagent.activity}
+        </div>
+      )}
     </li>
   );
 }
@@ -159,6 +240,8 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
   const removePersistedSession = useApp((s) => s.removePersistedSession);
   const setPersistedSessions = useApp((s) => s.setPersistedSessions);
   const manifest = useApp((s) => s.workspaceManifest);
+  const subagents = useApp((s) => s.subagents);
+  const mcpStatuses = useApp((s) => s.mcpStatuses);
   const loadList = useLoadPersistedSessions();
   const restore = useRestoreSession();
   const openWorkspace = useOpenWorkspace();
@@ -258,6 +341,17 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
 
   const skills = manifest?.skills ?? [];
   const mcp = manifest?.mcpServers ?? [];
+  const mcpEntries = [
+    ...mcp,
+    ...Object.keys(mcpStatuses)
+      .filter((name) => !mcp.some((server) => server.name === name))
+      .map((name) => ({
+        name,
+        command: "",
+        args: [],
+        disabled: false,
+      })),
+  ];
   const steering = manifest?.steering ?? [];
 
   const filteredSessions = search.trim()
@@ -344,15 +438,33 @@ export function Sidebar({ onCollapse }: { onCollapse: () => void }) {
           )}
         </CollapsibleSection>
 
-        <CollapsibleSection title="MCP Servers" count={mcp.length}>
-          {mcp.length === 0 ? (
+        <CollapsibleSection title="MCP Servers" count={mcpEntries.length}>
+          {mcpEntries.length === 0 ? (
             <p className="px-3 py-2 text-xs text-fg-subtle italic">
               No .kiro/settings/mcp.json
             </p>
           ) : (
             <ul>
-              {mcp.map((s) => (
-                <McpRow key={s.name} server={s} />
+              {mcpEntries.map((s) => (
+                <McpRow
+                  key={s.name}
+                  server={s}
+                  runtime={mcpStatuses[s.name]}
+                />
+              ))}
+            </ul>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection title="Subagents" count={subagents.length}>
+          {subagents.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-fg-subtle italic">
+              No subagent activity.
+            </p>
+          ) : (
+            <ul>
+              {subagents.map((subagent) => (
+                <SubagentRow key={subagent.id} subagent={subagent} />
               ))}
             </ul>
           )}

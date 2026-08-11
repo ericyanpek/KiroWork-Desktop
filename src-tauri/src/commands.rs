@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -5,65 +6,69 @@ use serde_json::Value;
 use tauri::{AppHandle, State};
 use tokio::sync::Mutex;
 
-use crate::acp_client::{AcpClient, CancelSender, InitializeResult};
+use crate::acp_client::{AcpClient, InitializeResult};
 use crate::error::{AppError, AppResult};
 use crate::session_store::{self, ReplayMessage, SessionMeta};
 use crate::workspace_scanner::{self, WorkspaceManifest};
 use crate::workspace_watcher;
 
-pub type AcpState = Arc<Mutex<Option<AcpClient>>>;
-/// Separate state for cancel so it never blocks on an in-flight session/prompt.
-pub type CancelState = Arc<Mutex<Option<CancelSender>>>;
+pub type AcpState = Arc<Mutex<Option<Arc<AcpClient>>>>;
 
 pub fn acp_state() -> AcpState {
     Arc::new(Mutex::new(None))
 }
 
-pub fn cancel_state() -> CancelState {
-    Arc::new(Mutex::new(None))
+async fn current_client(state: &State<'_, AcpState>) -> AppResult<Arc<AcpClient>> {
+    let client = state.lock().await.clone().ok_or(AppError::SessionError {
+        message: "acp not connected".into(),
+    })?;
+    if !client.is_alive() {
+        return Err(AppError::AcpConnectionFailed {
+            message: "kiro-cli ACP process exited; reconnect before continuing".into(),
+        });
+    }
+    Ok(client)
 }
 
 #[tauri::command]
 pub async fn acp_connect(
     app: AppHandle,
     state: State<'_, AcpState>,
-    cancel: State<'_, CancelState>,
 ) -> AppResult<InitializeResult> {
     let mut guard = state.lock().await;
-    if guard.is_some() {
+    if guard.as_ref().is_some_and(|client| client.is_alive()) {
         return Err(AppError::AcpConnectionFailed {
             message: "already connected".into(),
         });
     }
-    let (client, cancel_sender, init) = AcpClient::spawn(app).await?;
-    *guard = Some(client);
-    *cancel.lock().await = Some(cancel_sender);
+    *guard = None;
+    let (client, init) = AcpClient::spawn(app).await?;
+    *guard = Some(Arc::new(client));
     Ok(init)
 }
 
 #[tauri::command]
-pub async fn acp_disconnect(
-    state: State<'_, AcpState>,
-    cancel: State<'_, CancelState>,
-) -> AppResult<()> {
-    let mut guard = state.lock().await;
-    *guard = None; // Drop triggers `kill_on_drop(true)`.
-    *cancel.lock().await = None;
+pub async fn acp_disconnect(state: State<'_, AcpState>) -> AppResult<()> {
+    let client = state.lock().await.take();
+    if let Some(client) = client {
+        client.shutdown().await;
+    }
     Ok(())
 }
 
 #[tauri::command]
 pub async fn acp_status(state: State<'_, AcpState>) -> AppResult<&'static str> {
     let guard = state.lock().await;
-    Ok(if guard.is_some() { "connected" } else { "disconnected" })
+    Ok(if guard.as_ref().is_some_and(|client| client.is_alive()) {
+        "connected"
+    } else {
+        "disconnected"
+    })
 }
 
 #[tauri::command]
 pub async fn session_new(state: State<'_, AcpState>, cwd: String) -> AppResult<Value> {
-    let mut guard = state.lock().await;
-    let client = guard.as_mut().ok_or(AppError::SessionError {
-        message: "acp not connected".into(),
-    })?;
+    let client = current_client(&state).await?;
     client
         .request(
             "session/new",
@@ -78,10 +83,7 @@ pub async fn session_prompt(
     session_id: String,
     prompt: Value,
 ) -> AppResult<Value> {
-    let mut guard = state.lock().await;
-    let client = guard.as_mut().ok_or(AppError::SessionError {
-        message: "acp not connected".into(),
-    })?;
+    let client = current_client(&state).await?;
     // Real protocol field is `prompt`, not `content` (DESIGN.md had it wrong).
     client
         .request_no_timeout(
@@ -92,12 +94,93 @@ pub async fn session_prompt(
 }
 
 #[tauri::command]
-pub async fn session_cancel(cancel: State<'_, CancelState>, session_id: String) -> AppResult<()> {
-    let guard = cancel.lock().await;
-    let sender = guard.as_ref().ok_or(AppError::SessionError {
-        message: "acp not connected".into(),
-    })?;
-    sender.send_cancel(&session_id).await
+pub async fn session_cancel(state: State<'_, AcpState>, session_id: String) -> AppResult<()> {
+    let client = current_client(&state).await?;
+    client
+        .notify(
+            "session/cancel",
+            serde_json::json!({ "sessionId": session_id }),
+        )
+        .await
+}
+
+#[tauri::command]
+pub async fn session_steer(
+    state: State<'_, AcpState>,
+    session_id: String,
+    message: String,
+) -> AppResult<Value> {
+    let text = message.trim();
+    if text.is_empty() {
+        return Err(AppError::SessionError {
+            message: "steering message cannot be empty".into(),
+        });
+    }
+    let client = current_client(&state).await?;
+    client
+        .request("_session/steer", steering_params(&session_id, text))
+        .await
+}
+
+fn steering_params(session_id: &str, message: &str) -> Value {
+    serde_json::json!({
+        "sessionId": session_id,
+        "message": format!("<user_message>\n{message}\n</user_message>"),
+    })
+}
+
+#[tauri::command]
+pub async fn execute_command(
+    state: State<'_, AcpState>,
+    session_id: String,
+    command: String,
+    args: Option<Value>,
+) -> AppResult<Value> {
+    let command = command.trim();
+    let name = command
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .trim_start_matches('/');
+    if name.is_empty() {
+        return Err(AppError::SessionError {
+            message: "slash command cannot be empty".into(),
+        });
+    }
+    let client = current_client(&state).await?;
+    client
+        .request(
+            "_kiro.dev/commands/execute",
+            command_params(&session_id, name, args),
+        )
+        .await
+}
+
+fn command_params(session_id: &str, command: &str, args: Option<Value>) -> Value {
+    serde_json::json!({
+        "sessionId": session_id,
+        "command": {
+            "command": command,
+            "args": args.unwrap_or_else(|| serde_json::json!({})),
+        },
+    })
+}
+
+#[tauri::command]
+pub async fn set_permission_mode(state: State<'_, AcpState>, auto_approve: bool) -> AppResult<()> {
+    let client = current_client(&state).await?;
+    client.set_auto_approve(auto_approve);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn respond_permission(
+    state: State<'_, AcpState>,
+    request_id: Value,
+    option_id: Option<String>,
+) -> AppResult<()> {
+    let client = current_client(&state).await?;
+    client.respond_permission(request_id, option_id).await
 }
 
 /// Switch the active session's model. Real ACP param key is `modelId`,
@@ -108,10 +191,7 @@ pub async fn set_model(
     session_id: String,
     model_id: String,
 ) -> AppResult<Value> {
-    let mut guard = state.lock().await;
-    let client = guard.as_mut().ok_or(AppError::SessionError {
-        message: "acp not connected".into(),
-    })?;
+    let client = current_client(&state).await?;
     client
         .request(
             "session/set_model",
@@ -127,10 +207,7 @@ pub async fn set_mode(
     session_id: String,
     mode_id: String,
 ) -> AppResult<Value> {
-    let mut guard = state.lock().await;
-    let client = guard.as_mut().ok_or(AppError::SessionError {
-        message: "acp not connected".into(),
-    })?;
+    let client = current_client(&state).await?;
     client
         .request(
             "session/set_mode",
@@ -151,7 +228,7 @@ pub async fn get_session_title(session_id: String) -> AppResult<Option<String>> 
         })?
 }
 
-/// Scan `~/.kiro/sessions/cli/` for resumable sessions. Pure disk I/O,
+/// Scan Kiro's configured session directory for resumable sessions. Pure disk I/O,
 /// no ACP call, no AcpState lock.
 #[tauri::command]
 pub async fn list_persisted_sessions() -> AppResult<Vec<SessionMeta>> {
@@ -182,10 +259,7 @@ pub async fn load_session(
     cwd: String,
 ) -> AppResult<LoadSessionResult> {
     let session_value = {
-        let mut guard = state.lock().await;
-        let client = guard.as_mut().ok_or(AppError::SessionError {
-            message: "acp not connected".into(),
-        })?;
+        let client = current_client(&state).await?;
         client
             .request(
                 "session/load",
@@ -256,6 +330,23 @@ pub async fn read_file_bytes(path: String) -> AppResult<Vec<u8>> {
     })
 }
 
+#[tauri::command]
+pub fn export_transcript(path: PathBuf, content: String) -> AppResult<()> {
+    if !path.is_absolute() {
+        return Err(AppError::WorkspaceError {
+            message: "transcript export path must be absolute".into(),
+        });
+    }
+    if content.len() > 16 * 1024 * 1024 {
+        return Err(AppError::WorkspaceError {
+            message: "transcript export exceeds 16 MiB".into(),
+        });
+    }
+    std::fs::write(&path, content).map_err(|error| AppError::WorkspaceError {
+        message: format!("write transcript {}: {error}", path.display()),
+    })
+}
+
 /// Delete a session's `.json` and `.jsonl` files from `~/.kiro/sessions/cli/`.
 /// Locked sessions are excluded by `list_sessions`, so this should never be
 /// called for a live session. Runs on the blocking pool.
@@ -285,4 +376,39 @@ pub async fn scan_workspace(path: String) -> AppResult<WorkspaceManifest> {
     .map_err(|e| AppError::Unknown {
         message: format!("spawn_blocking: {e}"),
     })?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn steering_payload_wraps_user_message() {
+        assert_eq!(
+            steering_params("session-1", "redirect"),
+            json!({
+                "sessionId": "session-1",
+                "message": "<user_message>\nredirect\n</user_message>",
+            })
+        );
+    }
+
+    #[test]
+    fn command_payload_uses_tui_command_object() {
+        assert_eq!(
+            command_params("session-1", "effort", Some(json!({ "level": "high" }))),
+            json!({
+                "sessionId": "session-1",
+                "command": {
+                    "command": "effort",
+                    "args": { "level": "high" },
+                },
+            })
+        );
+        assert_eq!(
+            command_params("session-1", "help", None)["command"]["args"],
+            json!({})
+        );
+    }
 }

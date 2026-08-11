@@ -56,9 +56,21 @@ pub struct SteeringEntry {
 pub fn scan(root: &Path) -> AppResult<WorkspaceManifest> {
     let kiro = root.join(".kiro");
     Ok(WorkspaceManifest {
-        skills: if kiro.is_dir() { scan_skills(&kiro.join("skills")) } else { Vec::new() },
-        mcp_servers: if kiro.is_dir() { scan_mcp(&kiro.join("settings").join("mcp.json")) } else { Vec::new() },
-        steering: if kiro.is_dir() { scan_steering(&kiro.join("steering")) } else { Vec::new() },
+        skills: if kiro.is_dir() {
+            scan_skills(&kiro.join("skills"))
+        } else {
+            Vec::new()
+        },
+        mcp_servers: if kiro.is_dir() {
+            scan_mcp(&kiro.join("settings").join("mcp.json"))
+        } else {
+            Vec::new()
+        },
+        steering: if kiro.is_dir() {
+            scan_steering(&kiro.join("steering"))
+        } else {
+            Vec::new()
+        },
     })
 }
 
@@ -76,12 +88,16 @@ fn scan_skills(dir: &Path) -> Vec<SkillEntry> {
         if !manifest.is_file() {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(&manifest) else { continue };
+        let Ok(text) = std::fs::read_to_string(&manifest) else {
+            continue;
+        };
         let fm = parse_frontmatter(&text);
-        let name = fm
-            .get("name")
-            .cloned()
-            .unwrap_or_else(|| sub.file_name().and_then(|x| x.to_str()).unwrap_or("?").to_string());
+        let name = fm.get("name").cloned().unwrap_or_else(|| {
+            sub.file_name()
+                .and_then(|x| x.to_str())
+                .unwrap_or("?")
+                .to_string()
+        });
         out.push(SkillEntry {
             name,
             version: fm.get("version").cloned(),
@@ -106,7 +122,11 @@ fn scan_mcp(path: &Path) -> Vec<McpServerEntry> {
     };
     let mut out = Vec::new();
     for (name, cfg) in servers {
-        let command = cfg.get("command").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let command = cfg
+            .get("command")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
         let args = cfg
             .get("args")
             .and_then(|x| x.as_array())
@@ -116,7 +136,10 @@ fn scan_mcp(path: &Path) -> Vec<McpServerEntry> {
                     .collect()
             })
             .unwrap_or_default();
-        let disabled = cfg.get("disabled").and_then(|x| x.as_bool()).unwrap_or(false);
+        let disabled = cfg
+            .get("disabled")
+            .and_then(|x| x.as_bool())
+            .unwrap_or(false);
         out.push(McpServerEntry {
             name: name.clone(),
             command,
@@ -138,7 +161,9 @@ fn scan_steering(dir: &Path) -> Vec<SteeringEntry> {
         if p.extension().and_then(|x| x.to_str()) != Some("md") {
             continue;
         }
-        let Ok(text) = std::fs::read_to_string(&p) else { continue };
+        let Ok(text) = std::fs::read_to_string(&p) else {
+            continue;
+        };
         let fm = parse_frontmatter(&text);
         let name = p
             .file_stem()
@@ -147,7 +172,10 @@ fn scan_steering(dir: &Path) -> Vec<SteeringEntry> {
             .to_string();
         out.push(SteeringEntry {
             name,
-            inclusion: fm.get("inclusion").cloned().unwrap_or_else(|| "manual".into()),
+            inclusion: fm
+                .get("inclusion")
+                .cloned()
+                .unwrap_or_else(|| "manual".into()),
             file_match_pattern: fm.get("fileMatchPattern").cloned(),
             file_path: p.to_string_lossy().into_owned(),
         });
@@ -162,7 +190,10 @@ fn scan_steering(dir: &Path) -> Vec<SteeringEntry> {
 fn parse_frontmatter(text: &str) -> std::collections::BTreeMap<String, String> {
     use std::collections::BTreeMap;
     let mut out = BTreeMap::new();
-    let Some(body) = text.strip_prefix("---\n").or_else(|| text.strip_prefix("---\r\n")) else {
+    let Some(body) = text
+        .strip_prefix("---\n")
+        .or_else(|| text.strip_prefix("---\r\n"))
+    else {
         return out;
     };
     let Some(end) = body.find("\n---") else {

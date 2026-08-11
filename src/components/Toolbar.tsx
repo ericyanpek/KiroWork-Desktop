@@ -1,11 +1,19 @@
 import { useState, useRef, useEffect } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { open as openDialog, save } from "@tauri-apps/plugin-dialog";
 import { useApp } from "../stores/app-store";
-import { setMode, setModel } from "../lib/tauri-bridge";
+import {
+  executeCommand,
+  exportTranscript,
+  setMode,
+  setModel,
+  setPermissionMode as setBackendPermissionMode,
+} from "../lib/tauri-bridge";
 import { useOpenWorkspace } from "../hooks/useOpenWorkspace";
 import { useThemeMode, type ThemeMode } from "../hooks/useTheme";
 import type { AppError } from "../types/acp";
+import type { PermissionMode } from "../types/acp";
+import type { Message } from "../stores/app-store";
 import { Dropdown, DropdownItem } from "./Dropdown";
 import { ContextGauge } from "./ContextGauge";
 
@@ -102,6 +110,47 @@ function basename(p: string): string {
   return i >= 0 ? trimmed.slice(i + 1) : trimmed;
 }
 
+function transcriptMarkdown(
+  messages: Message[],
+  workspacePath: string | null,
+): string {
+  const lines = [
+    "# KiroWork Transcript",
+    "",
+    `Exported: ${new Date().toISOString()}`,
+    ...(workspacePath ? [`Workspace: \`${workspacePath}\``] : []),
+    "",
+  ];
+
+  for (const message of messages) {
+    lines.push(`## ${message.role === "user" ? "User" : "Assistant"}`, "");
+    if (message.steering) lines.push("_Steering message_", "");
+    if (message.thinking) {
+      lines.push(
+        "<details>",
+        "<summary>Reasoning</summary>",
+        "",
+        message.thinking,
+        "",
+        "</details>",
+        "",
+      );
+    }
+    if (message.text) lines.push(message.text, "");
+    if (message.toolCalls?.length) {
+      lines.push("### Tool calls", "");
+      for (const call of message.toolCalls) {
+        lines.push(`- **${call.title || call.kind}** (${call.status})`);
+        for (const path of call.filePaths ?? []) {
+          lines.push(`  - \`${path}\``);
+        }
+      }
+      lines.push("");
+    }
+  }
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
 export function Toolbar({
   sidebarCollapsed,
 }: {
@@ -115,9 +164,16 @@ export function Toolbar({
   const availableModels = useApp((s) => s.availableModels);
   const availableModes = useApp((s) => s.availableModes);
   const contextUsagePercentage = useApp((s) => s.contextUsagePercentage);
+  const cliVersion = useApp((s) => s.cliVersion);
+  const permissionMode = useApp((s) => s.permissionMode);
+  const messages = useApp((s) => s.messages);
+  const configOptions = useApp((s) => s.configOptions);
+  const currentEffort = useApp((s) => s.currentEffort);
   const setCurrentModelId = useApp((s) => s.setCurrentModelId);
   const setCurrentModeId = useApp((s) => s.setCurrentModeId);
+  const setCurrentEffort = useApp((s) => s.setCurrentEffort);
   const setError = useApp((s) => s.setError);
+  const setPermissionMode = useApp((s) => s.setPermissionMode);
   const openWorkspace = useOpenWorkspace();
   const [busy, setBusy] = useState(false);
 
@@ -160,8 +216,49 @@ export function Toolbar({
     }
   }
 
+  async function changePermissionMode(mode: PermissionMode) {
+    if (mode === permissionMode) return;
+    const previous = permissionMode;
+    setPermissionMode(mode);
+    try {
+      await setBackendPermissionMode(mode === "auto");
+    } catch (e) {
+      setPermissionMode(previous);
+      setError(e as AppError);
+    }
+  }
+
+  async function changeEffort(level: string) {
+    if (!sessionId || level === currentEffort) return;
+    const previous = currentEffort;
+    setCurrentEffort(level);
+    try {
+      await executeCommand(sessionId, "effort", { level });
+    } catch (e) {
+      setCurrentEffort(previous);
+      setError(e as AppError);
+    }
+  }
+
+  async function saveTranscript() {
+    if (messages.length === 0) return;
+    try {
+      const defaultName = `${basename(workspacePath ?? "kirowork")}-transcript.md`;
+      const path = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Markdown", extensions: ["md"] }],
+      });
+      if (!path) return;
+      await exportTranscript(path, transcriptMarkdown(messages, workspacePath));
+    } catch (e) {
+      setError(e as AppError);
+    }
+  }
+
   const currentModel = availableModels.find((m) => m.modelId === currentModelId);
   const currentMode = availableModes.find((m) => m.id === currentModeId);
+  const effortOption = configOptions.find((option) => option.id === "effort");
+  const effortLevels = effortOption?.options ?? [];
 
   return (
     <div className={`relative z-10 mr-2 mt-[6px] rounded-xl bg-bg-muted/10 backdrop-blur-xl px-3 py-1 flex items-center gap-2 text-xs shadow-[0_2px_16px_-4px_hsl(var(--accent)/0.15),0_0_0_1px_hsl(var(--border)/0.5)] pointer-events-auto min-w-0 ${sidebarCollapsed ? "ml-[120px]" : "ml-2"}`}>
@@ -176,11 +273,14 @@ export function Toolbar({
         className="group flex items-center gap-1.5 rounded-full border border-border/60 bg-bg-muted/30 px-2.5 py-1 hover:border-accent/40 hover:bg-bg-muted/60 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150 flex-shrink-0"
       >
         {/* Connection dot */}
-        <span className="inline-block w-1.5 h-1.5 rounded-full bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)] flex-shrink-0" />
+        <span
+          className="inline-block w-1.5 h-1.5 rounded-full bg-status-success shadow-[0_0_5px_hsl(var(--status-success)/0.6)] flex-shrink-0"
+          title={cliVersion ?? "Kiro CLI connected"}
+        />
 
         {/* Directory name — truncates gracefully */}
         {workspacePath ? (
-          <span className="text-fg-muted font-medium truncate max-w-[140px] group-hover:text-fg transition-colors duration-150">
+          <span className="text-fg-muted font-medium truncate max-w-[90px] xl:max-w-[140px] group-hover:text-fg transition-colors duration-150">
             {basename(workspacePath)}
           </span>
         ) : (
@@ -210,8 +310,10 @@ export function Toolbar({
           className="flex-shrink-0"
           label={
             <span className="flex items-center gap-1">
-              <span className="text-fg-subtle/70">model</span>
-              <span className="text-fg font-medium">{currentModel?.name ?? "…"}</span>
+              <span className="hidden text-fg-subtle/70 xl:inline">model</span>
+              <span className="max-w-[90px] truncate text-fg font-medium xl:max-w-[150px]">
+                {currentModel?.name ?? "…"}
+              </span>
             </span>
           }
         >
@@ -235,8 +337,10 @@ export function Toolbar({
           className="flex-shrink-0"
           label={
             <span className="flex items-center gap-1">
-              <span className="text-fg-subtle/70">agent</span>
-              <span className="text-fg font-medium">{currentMode?.name ?? "…"}</span>
+              <span className="hidden text-fg-subtle/70 xl:inline">agent</span>
+              <span className="max-w-[80px] truncate text-fg font-medium xl:max-w-[130px]">
+                {currentMode?.name ?? "…"}
+              </span>
             </span>
           }
         >
@@ -255,6 +359,91 @@ export function Toolbar({
         </Dropdown>
       )}
 
+      {effortLevels.length > 0 && (
+        <Dropdown
+          className="flex-shrink-0"
+          label={
+            <span className="flex items-center gap-1">
+              <span className="hidden text-fg-subtle/70 xl:inline">effort</span>
+              <span className="text-fg font-medium">
+                {effortLevels.find((level) => level.value === currentEffort)?.name ??
+                  currentEffort ??
+                  "Default"}
+              </span>
+            </span>
+          }
+        >
+          {(close) => (
+            <>
+              {effortLevels.map((level) => (
+                <DropdownItem
+                  key={level.value}
+                  active={level.value === currentEffort}
+                  onClick={() => {
+                    close();
+                    changeEffort(level.value);
+                  }}
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{level.name ?? level.value}</span>
+                    {level.description && (
+                      <span className="text-[10px] text-fg-subtle">
+                        {level.description}
+                      </span>
+                    )}
+                  </div>
+                </DropdownItem>
+              ))}
+            </>
+          )}
+        </Dropdown>
+      )}
+
+      <Dropdown
+        className="flex-shrink-0"
+        label={
+          <span className="flex items-center gap-1">
+            <span className="hidden text-fg-subtle/70 xl:inline">tools</span>
+            <span className="text-fg font-medium">
+              {permissionMode === "auto" ? "Auto" : "Ask"}
+            </span>
+          </span>
+        }
+      >
+        {(close) => (
+          <>
+            <DropdownItem
+              active={permissionMode === "ask"}
+              onClick={() => {
+                close();
+                changePermissionMode("ask");
+              }}
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">Ask</span>
+                <span className="text-[10px] text-fg-subtle">
+                  Review each tool request
+                </span>
+              </div>
+            </DropdownItem>
+            <DropdownItem
+              active={permissionMode === "auto"}
+              onClick={() => {
+                close();
+                changePermissionMode("auto");
+              }}
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium">Auto</span>
+                <span className="text-[10px] text-fg-subtle">
+                  Approve tool requests this run
+                </span>
+              </div>
+            </DropdownItem>
+          </>
+        )}
+      </Dropdown>
+
       {/* Drag region spacer — fills the gap between left and right controls */}
       <div
         data-tauri-drag-region
@@ -269,6 +458,18 @@ export function Toolbar({
       {/* Right controls — left-to-right: context gauge, theme, panel toggle (panel rightmost, nearest to the panel) */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <ContextGauge percentage={contextUsagePercentage} />
+        <button
+          onClick={saveTranscript}
+          disabled={messages.length === 0}
+          title="Export transcript"
+          aria-label="Export transcript"
+          className="flex items-center justify-center w-7 h-6 rounded-full border border-border/60 bg-bg/60 text-fg-subtle hover:text-fg hover:border-accent/40 hover:bg-bg-muted/60 disabled:opacity-30 disabled:cursor-not-allowed transition-colors duration-150"
+        >
+          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M8 2v8M5 7l3 3 3-3" />
+            <path d="M3 11v2h10v-2" />
+          </svg>
+        </button>
         <ThemeSwitcher />
         <FilePanelToggle />
       </div>

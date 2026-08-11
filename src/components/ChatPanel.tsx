@@ -79,7 +79,15 @@ export function ChatPanel() {
             </div>
           )}
           {messages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onReusePrompt={
+                m.role === "user" && !m.steering
+                  ? () => setQuickInput(m.text)
+                  : undefined
+              }
+            />
           ))}
           {error && (
             <div className="rounded-lg border border-status-error/25 bg-status-error/8 px-3 py-2.5 text-sm text-status-error">

@@ -1,4 +1,5 @@
-//! Kiro persists each session as two sibling files in `~/.kiro/sessions/cli/`:
+//! Kiro persists each session under `$KIRO_HOME/sessions/cli/`, defaulting to
+//! `~/.kiro/sessions/cli/` when `KIRO_HOME` is not set:
 //!   <uuid>.json   — one-shot metadata (title, cwd, timestamps)
 //!   <uuid>.jsonl  — append-only message log, one JSON record per line
 //!   <uuid>.lock   — kiro-cli's lock; when present, another process owns it
@@ -51,7 +52,9 @@ pub enum ReplayMessage {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ReplayBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     ToolUse {
         tool_use_id: String,
         name: String,
@@ -60,8 +63,18 @@ pub enum ReplayBlock {
 }
 
 fn sessions_dir() -> AppResult<PathBuf> {
-    let home = dirs::home_dir().ok_or(AppError::Unknown {
-        message: "no home dir".into(),
+    sessions_dir_from(
+        std::env::var_os("KIRO_HOME").map(PathBuf::from),
+        dirs::home_dir(),
+    )
+}
+
+fn sessions_dir_from(kiro_home: Option<PathBuf>, home: Option<PathBuf>) -> AppResult<PathBuf> {
+    if let Some(kiro_home) = kiro_home {
+        return Ok(kiro_home.join("sessions/cli"));
+    }
+    let home = home.ok_or(AppError::Unknown {
+        message: "no home dir and KIRO_HOME is not set".into(),
     })?;
     Ok(home.join(".kiro/sessions/cli"))
 }
@@ -133,7 +146,9 @@ pub fn get_session_title(session_id: &str) -> AppResult<Option<String>> {
     let v: Value = serde_json::from_str(&text).map_err(|e| AppError::Unknown {
         message: format!("parse {}: {e}", path.display()),
     })?;
-    Ok(v.get("title").and_then(|x| x.as_str()).map(|s| s.to_string()))
+    Ok(v.get("title")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string()))
 }
 
 /// Delete a session's `.json` and `.jsonl` files. `.lock` is intentionally
@@ -264,9 +279,9 @@ fn to_replay(entry: &Value) -> Option<ReplayMessage> {
             // concatenate into a single Tool message keyed by the first
             // toolUseId. Kiro typically emits one result per entry anyway.
             let content = data.get("content")?.as_array()?;
-            let first = content.iter().find(|p| {
-                p.get("kind").and_then(|x| x.as_str()) == Some("toolResult")
-            })?;
+            let first = content
+                .iter()
+                .find(|p| p.get("kind").and_then(|x| x.as_str()) == Some("toolResult"))?;
             let tdata = first.get("data")?;
             let tool_use_id = tdata
                 .get("toolUseId")
@@ -294,5 +309,26 @@ fn to_replay(entry: &Value) -> Option<ReplayMessage> {
             })
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn custom_kiro_home_controls_session_location() {
+        let path = sessions_dir_from(
+            Some(PathBuf::from("/tmp/custom-kiro")),
+            Some(PathBuf::from("/Users/example")),
+        )
+        .unwrap();
+        assert_eq!(path, PathBuf::from("/tmp/custom-kiro/sessions/cli"));
+    }
+
+    #[test]
+    fn default_session_location_uses_dot_kiro() {
+        let path = sessions_dir_from(None, Some(PathBuf::from("/Users/example"))).unwrap();
+        assert_eq!(path, PathBuf::from("/Users/example/.kiro/sessions/cli"));
     }
 }

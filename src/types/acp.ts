@@ -1,5 +1,4 @@
-// TypeScript types for the real ACP protocol as emitted by kiro-cli 2.1.1.
-// Probed live, not taken from DESIGN.md (which has several incorrect shapes).
+// ACP wire types accepted from supported Kiro CLI V2 releases.
 
 export type ContentBlock =
   | { type: "text"; text: string }
@@ -13,9 +12,12 @@ export type ToolCallContent =
   | { type: string; [k: string]: unknown };
 
 export type SessionUpdate =
-  | { sessionUpdate: "agent_message_chunk"; content: { type: "text"; text: string } }
   | {
-      sessionUpdate: "tool_call";
+      sessionUpdate: "agent_message_chunk" | "agent_thought_chunk";
+      content: { type: "text" | "thinking" | "reasoning"; text: string };
+    }
+  | {
+      sessionUpdate: "tool_call" | "tool_call_chunk";
       toolCallId: string;
       title: string;
       kind: string;
@@ -44,7 +46,69 @@ export interface InitializeResult {
   agentCapabilities: unknown;
   authMethods: unknown[];
   agentInfo: { name: string; version: string; title?: string };
+  cliVersion: string;
+  compatibilityWarning?: string | null;
 }
+
+export type PermissionMode = "ask" | "auto";
+
+export interface PermissionOption {
+  optionId: string;
+  name: string;
+  kind: string;
+}
+
+export interface PermissionRequestEvent {
+  requestId: string | number;
+  sessionId?: string | null;
+  toolCallId?: string | null;
+  title: string;
+  kind: string;
+  options: PermissionOption[];
+}
+
+export interface SlashCommand {
+  name: string;
+  description: string;
+  inputHint?: string;
+}
+
+export interface ConfigOptionChoice {
+  value: string;
+  name?: string;
+  description?: string;
+}
+
+export interface ConfigOption {
+  id: string;
+  name?: string;
+  currentValue?: string;
+  value?: string;
+  options?: ConfigOptionChoice[];
+}
+
+export interface SubagentView {
+  id: string;
+  role: string;
+  status: string;
+  title?: string;
+  activity?: string;
+}
+
+export type McpConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "authorization_required"
+  | "error";
+
+export interface McpStatusEvent {
+  serverName: string;
+  status: McpConnectionStatus;
+  oauthUrl?: string | null;
+  message?: string | null;
+}
+
+export type SteeringStatus = "idle" | "queued" | "consumed";
 
 export interface ModeInfo {
   id: string;
@@ -68,12 +132,14 @@ export interface SessionNewResult {
     currentModelId: string;
     availableModels: ModelInfo[];
   };
+  configOptions?: ConfigOption[];
 }
 
 /** session/load response — mirror of SessionNewResult minus sessionId. */
 export interface SessionLoadResult {
   modes: SessionNewResult["modes"];
   models: SessionNewResult["models"];
+  configOptions?: ConfigOption[];
 }
 
 export interface KiroMetadataEvent {

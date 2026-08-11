@@ -1,141 +1,121 @@
-# ⚡ KiroWork Desktop
+# KiroWork Desktop
 
-> **Kiro AI 的 macOS 原生客户端** — 将 `kiro-cli` 的全部 Agent 能力封装进一个零终端操作的对话界面。基于 Tauri 2 IPC 桥接 Kiro ACP 协议，前端 React 19 + TypeScript，后端 Rust 异步运行时。
+KiroWork Desktop 是一个面向 macOS 的 Kiro CLI 图形客户端。应用通过
+Tauri 2 启动本机 `kiro-cli acp` 子进程，以 JSON-RPC 2.0 与 Kiro Agent
+通信；React 前端负责会话、权限、工具调用和项目配置的可视化。
 
 ![platform](https://img.shields.io/badge/platform-macOS-lightgrey?logo=apple)
-![version](https://img.shields.io/badge/version-0.3.1-blueviolet)
+![version](https://img.shields.io/badge/version-0.4.0-blue)
 ![stack](https://img.shields.io/badge/stack-Tauri%202%20%2B%20React%2019%20%2B%20Rust-orange)
 ![license](https://img.shields.io/badge/license-MIT-green)
 
----
+## 功能
 
-## ✨ 核心特性
+- 多会话列表、搜索、恢复和删除
+- Agent 回复、reasoning 和工具调用流式展示
+- 文件变更 diff、文件活动与侧边预览
+- 图片选择和剪贴板图片输入
+- 模型、Agent 模式、reasoning effort 动态切换
+- Ask/Auto 工具权限模式和逐次权限确认
+- 运行中 Queue Steering 与独立 Stop 操作
+- Kiro CLI 动态 Slash Command 命令面板
+- Subagent 活动、MCP 连接状态和 OAuth 授权入口
+- `.kiro/skills`、MCP 和 Steering 配置热更新
+- 上下文用量、主题切换和 Markdown transcript 导出
+- `KIRO_HOME` 与 Kiro CLI 版本兼容检查
 
-| 特性 | 说明 |
-|------|------|
-| 🗂 **多会话管理** | 侧边栏列出所有持久化会话，顶部搜索框按标题/路径即时过滤；切换、恢复、删除；会话历史通过本地 JSONL 离线重建。切换活跃会话后会话条目保持不消失 |
-| 🔧 **实时工具调用卡片** | Agent 每次调用工具时自动渲染入参、执行状态（running / success / error）及输出 diff；完成后的编辑卡片自动折叠，点标题可展开 |
-| 💬 **悬浮输入药丸** | 底部输入框以独立合成层渲染，流式回复不会与背后的毛玻璃重绘冲突；最新气泡自动停在药丸上方，避免被遮挡 |
-| 🤖 **模型 & Agent 模式热切换** | 顶栏下拉直接切换模型和 Agent 模式，无需重建会话上下文 |
-| 🧩 **Skills / MCP / Steering 侧边栏** | 基于 macOS FSEvents 实时监听 `.kiro/` 目录变更，自动刷新已安装的 Skills、MCP Server 和 Steering 配置 |
-| 🖼 **多模态输入** | 支持文件选择器或剪贴板粘贴上传图片，附缩略图预览，编码为 base64 随 prompt 一同发送 |
-| 📊 **上下文用量指示** | 顶栏实时渲染 context window 使用百分比，超过阈值自动切换警告色 |
-| 🛑 **非阻塞 Stop** | `session/cancel` 通过独立 `CancelSender` 通道发送，不竞争 `session/prompt` 持有的 ACP 锁 |
-| 🈶 **IME 兼容** | 基于时间戳的输入法确认守卫，正确处理 macOS WKWebView 上 `compositionend` 早于 `keydown` 的时序问题 |
+## 系统要求
 
----
+- macOS 12 或更高版本
+- Kiro CLI 2.2.0 或更高版本
+- 本地开发需要 Node.js 20+ 和 Rust stable
 
-## 🎬 演示
+Kiro CLI 默认从 `KIRO_CLI_PATH`、`~/.local/bin/kiro-cli` 和当前 `PATH`
+发现。会话目录遵循 `KIRO_HOME`，未设置时使用 `~/.kiro`。
 
-**① 开启一个项目**
-
-<video src="https://github.com/user-attachments/assets/6d2c2003-b3d9-4835-aaa8-6289861ff3ff" controls width="100%" style="border-radius:12px"></video>
-
-**② 通过自然语言安装 MCP 和 Skills**
-
-<video src="https://github.com/user-attachments/assets/73716c1b-78a6-4d37-9e05-74129d0f2b20" controls width="100%" style="border-radius:12px"></video>
-
----
-
-## 🔧 前置依赖
-
-- macOS 12+（Apple Silicon 或 Intel）
-- [`kiro-cli`](https://kiro.dev) 已安装（默认路径 `~/.local/bin/kiro-cli`）
-- Node.js 20+
-- Rust stable（推荐通过 `rustup` 安装）
-
----
-
-## 🚀 下载
-
-> 仅支持 macOS（Apple Silicon / Intel）
-
-**[⬇ 下载最新版 DMG → GitHub Releases](https://github.com/ericyanpek/KiroWork-Desktop/releases/latest)**
-
-安装：
-1. 打开 DMG，将 **KiroWork Desktop.app** 拖入 `/Applications`
-2. **首次启动必须右键 → 打开**，在系统弹窗中确认（ad-hoc 签名绕过 Gatekeeper）
-3. 后续双击正常启动
-
-> 若系统提示「已损坏」，终端执行 `xattr -cr "/Applications/KiroWork Desktop.app"` 后重试。
-
----
-
-## 🏗 架构概览
-
-```
-┌─────────────────────────────────────────────────────┐
-│                  React 19 Frontend                  │
-│  Zustand store ←→ tauri-bridge ←→ Tauri IPC layer  │
-└───────────────────────┬─────────────────────────────┘
-                        │ invoke / emit
-┌───────────────────────▼─────────────────────────────┐
-│               Rust Backend (Tokio async)             │
-│  AcpClient ──► kiro-cli acp (JSON-RPC 2.0 / stdio) │
-│  SessionStore ──► ~/.kiro/sessions/cli/*.jsonl      │
-│  WorkspaceWatcher ──► FSEvents → Tauri event bus    │
-└─────────────────────────────────────────────────────┘
-```
-
-**通信协议**：Tauri IPC（`invoke` / `emit`）封装 JSON-RPC 2.0，通过 kiro-cli 子进程的 stdin/stdout 与 Kiro ACP 协议交互。响应通过 `DashMap<u64, oneshot::Sender>` 按请求 ID 路由；流式通知（`session/update`）直接转发为 Tauri 事件。
-
----
-
-## 💻 本地开发
+## 本地开发
 
 ```sh
 npm install
 npm run tauri dev
 ```
 
-首次启动自动执行 `initialize` 握手连接 Kiro ACP，未认证时跳转登录页，轮询 `check_auth` 直至 OAuth 完成。
+应用启动时会检查 Kiro CLI 和登录状态。未登录时可从应用触发 Kiro CLI
+登录流程，认证完成后重新连接 ACP。
 
----
-
-## 📦 打包
+## 验证
 
 ```sh
-# 标准打包 — 生成 .app + .dmg
-npm run tauri build
+npm run build
+cd src-tauri
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
 
-# 推荐分发版本 — DMG 内附首次运行说明
+## macOS 打包
+
+```sh
 npm run bundle:mac
 ```
 
+该命令先让 Tauri 构建并签名 `.app`，再使用项目脚本创建最终 DMG。DMG
+流程不依赖 Finder 自动化，可避免新版本 macOS 下临时卷无法及时卸载。
+
 产物：
 
-```
+```text
 src-tauri/target/release/bundle/
 ├── macos/KiroWork Desktop.app
-└── dmg/KiroWork Desktop_0.3.0_aarch64.dmg
+└── dmg/KiroWork Desktop_0.4.0_aarch64.dmg
 ```
 
----
+当前发布包使用 ad-hoc 签名，首次启动需要在 Applications 中右键应用并
+选择“打开”。正式分发前仍需配置 Apple Developer ID、notarization 和
+universal build。
 
-## 📁 项目结构
+## 架构
 
+```text
+React 19 + Zustand
+        │ Tauri invoke / event
+        ▼
+Rust backend
+  ├── ACP client and JSON-RPC router
+  ├── Kiro CLI discovery and authentication
+  ├── session replay and persistence
+  └── workspace scanner and watcher
+        │ stdin / stdout
+        ▼
+kiro-cli acp
 ```
+
+主要目录：
+
+```text
 src/
-  components/        AuthGate · Toolbar · Sidebar · ChatPanel · InputBar · ToolCallCard …
-  hooks/             useAcp · useWorkspaceScan · useOpenWorkspace · useIsDark …
-  stores/            Zustand app store（会话状态 / ACP 状态 / 错误）
-  lib/               tauri-bridge（唯一 IPC 边界）· shiki（懒加载语法高亮）
-  types/acp.ts       ACP 协议 wire types
+  components/        对话、工具栏、侧边栏、权限和文件预览
+  hooks/             ACP 事件、workspace 和主题逻辑
+  stores/            Zustand 应用状态
+  lib/               Tauri IPC 边界
+  types/acp.ts       ACP wire types
 
 src-tauri/src/
-  acp_client.rs      kiro-cli 子进程生命周期 + JSON-RPC 帧解析 + 事件路由
-  commands.rs        16 个 Tauri command handler
-  session_store.rs   ~/.kiro/sessions/cli/ JSONL 解析与会话元数据
-  workspace_scanner.rs  .kiro/ 静态扫描（Skills / MCP / Steering frontmatter）
-  workspace_watcher.rs  FSEvents 动态监听 → workspace-manifest-updated 事件
-  auth_manager.rs    kiro-cli 认证状态检测与登录触发
-
-scripts/
-  repack-dmg.sh      Tauri DMG 后处理（注入 Applications 软链接 + 说明文件）
+  acp_client.rs      子进程、JSON-RPC 路由和 ACP 事件
+  commands.rs        Tauri command handlers
+  auth_manager.rs    CLI 检测与认证
+  session_store.rs   会话发现与离线 replay
+  workspace_*.rs     `.kiro` 扫描与文件监听
 ```
 
----
+协议与模块约束见 [DESIGN.md](./DESIGN.md)。
 
-## 🛠 推荐 IDE 配置
+## 当前限制
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- `_kiro.dev/*` 和 `_session/steer` 属于扩展协议，能力依赖已安装 CLI。
+- 应用当前不会在 Kiro CLI 异常退出后自动恢复 ACP 与活跃会话。
+- Context compaction 等部分扩展状态尚未提供独立 UI。
+- 尚未配置自动更新、Developer ID 签名和 Apple notarization。
+
+## License
+
+MIT

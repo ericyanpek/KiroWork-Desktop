@@ -12,9 +12,8 @@ use tracing_subscriber::EnvFilter;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new("kiro_cowork_desktop_lib=debug,warn")
-    });
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("kiro_cowork_desktop_lib=debug,warn"));
     let _ = tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(true)
@@ -24,7 +23,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(commands::acp_state())
-        .manage(commands::cancel_state())
         .invoke_handler(tauri::generate_handler![
             commands::acp_connect,
             commands::acp_disconnect,
@@ -32,6 +30,10 @@ pub fn run() {
             commands::session_new,
             commands::session_prompt,
             commands::session_cancel,
+            commands::session_steer,
+            commands::execute_command,
+            commands::set_permission_mode,
+            commands::respond_permission,
             commands::set_model,
             commands::set_mode,
             commands::get_session_title,
@@ -42,6 +44,7 @@ pub fn run() {
             commands::watch_workspace,
             commands::unwatch_workspace,
             commands::read_file_bytes,
+            commands::export_transcript,
             auth_manager::check_auth,
             auth_manager::trigger_login,
         ])

@@ -2,11 +2,18 @@ import { create } from "zustand";
 import type {
   AppError,
   KiroMetadataEvent,
+  ConfigOption,
+  McpStatusEvent,
   ModeInfo,
   ModelInfo,
+  PermissionMode,
+  PermissionRequestEvent,
   ReplayMessage,
   SessionMeta,
   SessionNewResult,
+  SlashCommand,
+  SteeringStatus,
+  SubagentView,
   SessionLoadResult,
   WorkspaceManifest,
 } from "../types/acp";
@@ -30,6 +37,8 @@ export type Message = {
   text: string;
   streaming?: boolean;
   toolCalls?: ToolCallView[];
+  thinking?: string;
+  steering?: boolean;
 };
 
 export type AcpStatus = "disconnected" | "connecting" | "connected" | "error";
@@ -51,6 +60,18 @@ export interface AppState {
   availableModels: ModelInfo[];
   availableModes: ModeInfo[];
   contextUsagePercentage: number | null;
+  cliVersion: string | null;
+  agentCapabilities: unknown;
+  compatibilityWarning: string | null;
+  availableCommands: SlashCommand[];
+  configOptions: ConfigOption[];
+  currentEffort: string | null;
+  subagents: SubagentView[];
+  mcpStatuses: Record<string, McpStatusEvent>;
+  steeringStatus: SteeringStatus;
+
+  permissionMode: PermissionMode;
+  pendingPermissions: PermissionRequestEvent[];
 
   // Phase2-a: persisted sessions sidebar
   persistedSessions: SessionMeta[];
@@ -75,9 +96,11 @@ export interface AppState {
   setError: (e: AppError | null) => void;
 
   addUserMessage: (text: string) => void;
+  addSteeringMessage: (text: string) => void;
   startTurn: () => void;
   endTurn: () => void;
   appendChunk: (text: string) => void;
+  appendThinking: (text: string) => void;
   addOrUpdateToolCall: (tc: ToolCallView) => void;
 
   // Phase2-c
@@ -85,6 +108,25 @@ export interface AppState {
   setCurrentModeId: (id: string | null) => void;
   hydrateFromSessionResult: (r: SessionNewResult | SessionLoadResult) => void;
   applyMetadata: (e: KiroMetadataEvent) => void;
+  setCliInfo: (
+    version: string,
+    capabilities: unknown,
+    warning?: string | null,
+  ) => void;
+  setPermissionMode: (mode: PermissionMode) => void;
+  enqueuePermission: (request: PermissionRequestEvent) => void;
+  removePermission: (requestId: string | number) => void;
+  clearPermissions: () => void;
+  setAvailableCommands: (commands: SlashCommand[]) => void;
+  setConfigOptions: (options: ConfigOption[]) => void;
+  setCurrentEffort: (effort: string | null) => void;
+  setSubagents: (subagents: SubagentView[]) => void;
+  updateSubagentActivity: (
+    id: string,
+    activity: Partial<Pick<SubagentView, "activity" | "status" | "title">>,
+  ) => void;
+  setMcpStatus: (event: McpStatusEvent) => void;
+  setSteeringStatus: (status: SteeringStatus) => void;
 
   // Phase2-a
   setPersistedSessions: (list: SessionMeta[]) => void;
@@ -161,6 +203,11 @@ function rid(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function effortFromOptions(options: ConfigOption[]): string | null {
+  const effort = options.find((option) => option.id === "effort");
+  return effort?.currentValue ?? effort?.value ?? null;
+}
+
 export const useApp = create<AppState>((set) => ({
   acpStatus: "disconnected",
   authStatus: "unknown",
@@ -173,6 +220,17 @@ export const useApp = create<AppState>((set) => ({
   availableModels: [],
   availableModes: [],
   contextUsagePercentage: null,
+  cliVersion: null,
+  agentCapabilities: null,
+  compatibilityWarning: null,
+  availableCommands: [],
+  configOptions: [],
+  currentEffort: null,
+  subagents: [],
+  mcpStatuses: {},
+  steeringStatus: "idle",
+  permissionMode: "ask",
+  pendingPermissions: [],
   persistedSessions: [],
   workspaceManifest: null,
   error: null,
@@ -189,6 +247,19 @@ export const useApp = create<AppState>((set) => ({
   addUserMessage: (text) =>
     set((state) => ({
       messages: [...state.messages, { id: rid(), role: "user", text }],
+    })),
+
+  addSteeringMessage: (text) =>
+    set((state) => ({
+      messages: [
+        ...state.messages.map((message) =>
+          message.role === "assistant" && message.streaming
+            ? { ...message, streaming: false }
+            : message,
+        ),
+        { id: rid(), role: "user", text, steering: true },
+      ],
+      steeringStatus: "queued",
     })),
 
   startTurn: () =>
@@ -222,6 +293,21 @@ export const useApp = create<AppState>((set) => ({
       return { messages: msgs };
     }),
 
+  appendThinking: (text) =>
+    set((state) => {
+      const msgs = [...state.messages];
+      let last = msgs[msgs.length - 1];
+      if (!last || last.role !== "assistant" || !last.streaming) {
+        last = { id: rid(), role: "assistant", text: "", streaming: true, toolCalls: [] };
+        msgs.push(last);
+      }
+      msgs[msgs.length - 1] = {
+        ...last,
+        thinking: (last.thinking ?? "") + text,
+      };
+      return { messages: msgs };
+    }),
+
   addOrUpdateToolCall: (tc) =>
     set((state) => {
       const msgs = [...state.messages];
@@ -251,9 +337,75 @@ export const useApp = create<AppState>((set) => ({
       availableModes: r.modes?.availableModes ?? [],
       // Fresh session/load: reset context gauge until kiro sends new metadata.
       contextUsagePercentage: null,
+      configOptions: r.configOptions ?? [],
+      currentEffort: effortFromOptions(r.configOptions ?? []),
+      subagents: [],
+      steeringStatus: "idle",
     }),
 
   applyMetadata: (e) => set({ contextUsagePercentage: e.contextUsagePercentage }),
+  setCliInfo: (cliVersion, agentCapabilities, compatibilityWarning = null) =>
+    set({ cliVersion, agentCapabilities, compatibilityWarning }),
+  setPermissionMode: (permissionMode) => set({ permissionMode }),
+  enqueuePermission: (request) =>
+    set((state) => ({
+      pendingPermissions: state.pendingPermissions.some(
+        (pending) => pending.requestId === request.requestId,
+      )
+        ? state.pendingPermissions
+        : [...state.pendingPermissions, request],
+    })),
+  removePermission: (requestId) =>
+    set((state) => ({
+      pendingPermissions: state.pendingPermissions.filter(
+        (request) => request.requestId !== requestId,
+      ),
+    })),
+  clearPermissions: () => set({ pendingPermissions: [] }),
+  setAvailableCommands: (availableCommands) => set({ availableCommands }),
+  setConfigOptions: (configOptions) =>
+    set((state) => ({
+      configOptions,
+      currentEffort: effortFromOptions(configOptions) ?? state.currentEffort,
+    })),
+  setCurrentEffort: (currentEffort) => set({ currentEffort }),
+  setSubagents: (subagents) =>
+    set((state) => ({
+      subagents: subagents.map((subagent) => {
+        const previous = state.subagents.find((item) => item.id === subagent.id);
+        return previous
+          ? {
+              ...previous,
+              ...subagent,
+              activity: subagent.activity ?? previous.activity,
+            }
+          : subagent;
+      }),
+    })),
+  updateSubagentActivity: (id, activity) =>
+    set((state) => ({
+      subagents: state.subagents.some((subagent) => subagent.id === id)
+        ? state.subagents.map((subagent) =>
+            subagent.id === id ? { ...subagent, ...activity } : subagent,
+          )
+        : [
+            ...state.subagents,
+            {
+              id,
+              role: "subagent",
+              status: activity.status ?? "working",
+              ...activity,
+            },
+          ],
+    })),
+  setMcpStatus: (event) =>
+    set((state) => ({
+      mcpStatuses: {
+        ...state.mcpStatuses,
+        [event.serverName]: event,
+      },
+    })),
+  setSteeringStatus: (steeringStatus) => set({ steeringStatus }),
 
   setPersistedSessions: (list) =>
     set((s) => {
@@ -312,6 +464,12 @@ export const useApp = create<AppState>((set) => ({
       availableModels: [],
       availableModes: [],
       contextUsagePercentage: null,
+      pendingPermissions: [],
+      configOptions: [],
+      currentEffort: null,
+      subagents: [],
+      mcpStatuses: {},
+      steeringStatus: "idle",
       // persistedSessions stays — it's a separate concern from the active
       // session's state.
     }),

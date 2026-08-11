@@ -105,7 +105,11 @@ fn extract_diff_path(update: &Value) -> Option<String> {
 fn extract_location_path(update: &Value) -> Option<String> {
     let locs = update.get("locations")?.as_array()?;
     locs.iter()
-        .find_map(|loc| loc.get("path").and_then(|v| v.as_str()).filter(|p| !p.is_empty()))
+        .find_map(|loc| {
+            loc.get("path")
+                .and_then(|v| v.as_str())
+                .filter(|p| !p.is_empty())
+        })
         .map(|s| s.to_string())
 }
 
@@ -113,7 +117,11 @@ fn extract_raw_input_path(update: &Value) -> Option<String> {
     let ri = update.get("rawInput")?;
     // Try common field names that file-touching tools use.
     for field in &["path", "filePath", "file_path", "filename", "file"] {
-        if let Some(p) = ri.get(field).and_then(|v| v.as_str()).filter(|p| !p.is_empty()) {
+        if let Some(p) = ri
+            .get(field)
+            .and_then(|v| v.as_str())
+            .filter(|p| !p.is_empty())
+        {
             return Some(p.to_string());
         }
     }
